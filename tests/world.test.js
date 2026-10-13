@@ -20,10 +20,11 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     getContext() { return { createRadialGradient() { return { addColorStop() {} }; }, fillRect() {}, fillText() {}, createImageData(w,h) { return { data: new Uint8ClampedArray(w*h*4) }; }, putImageData() {} }; },
   });
   const saved = {};
-  let nextFrame, scene, camera, disposed = false, compiled = false;
+  let nextFrame, scene, camera, disposed = false, compiled = false, time = 0;
   const globals = {
     document: { querySelector: selector => root.querySelector(selector), createElement: node },
     devicePixelRatio: 1, matchMedia: () => ({ matches: false }),
+    performance: { now: () => time },
     ResizeObserver: class { observe() {} disconnect() {} },
     requestAnimationFrame: callback => { nextFrame = callback; return 1; },
     cancelAnimationFrame: () => { nextFrame = null; },
@@ -74,8 +75,7 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
         assert.ok(Math.hypot(center.x-island.x,center.y-island.y)>planet.userData.visualRadius+station.radius+7,`${kind} overlaps ${station.id} in the projected view`);
       }
     }
-    let time=0;
-    const frames=count=>{for(let i=0;i<count;i++){const callback=nextFrame;nextFrame=null;assert.ok(callback);time+=1000/60;callback(time);}};
+    const frames=(count,step=1000/60)=>{for(let i=0;i<count;i++){const callback=nextFrame;nextFrame=null;assert.ok(callback);time+=step;callback(time);}};
     const reveal=api.reveal();
     assert.equal(api.reveal(),reveal);
     assert.equal(scene.getObjectByName('island-about').scale.x,.015);
@@ -107,7 +107,22 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     frames(8);assert.ok(bolt.position.distanceTo(boltStart)>10,'bolts travel away from the four cannons');
     frames(30);assert.ok(lasers.children.every(o=>!o.visible),'bolts expire instead of leaving long streaks');
     const beam=scene.getObjectByName('charged-laser'),charge=scene.getObjectByName('laser-charge');
-    press();frames(90);
+    const strengths=[];
+    for (const hold of [1000,5000,10000,15000]) {
+      press();frames(1,hold);
+      assert.ok(Math.abs(flightStatus.charge-Math.min(1,hold/10000))<1e-8,'charge follows held time even with a delayed frame');
+      release();
+      const size=beam.scale.clone();let duration=0;
+      while(beam.visible && duration<120){frames(1);duration++;}
+      strengths.push({size,duration});frames(190);
+    }
+    for(let i=1;i<3;i++) {
+      assert.ok(strengths[i].size.x>strengths[i-1].size.x && strengths[i].size.y>strengths[i-1].size.y,'longer holds produce a wider, longer beam');
+      assert.ok(strengths[i].duration>strengths[i-1].duration,'longer holds produce a longer discharge');
+    }
+    assert.ok(strengths[3].size.distanceTo(strengths[2].size)<1e-8,'power stops increasing at ten seconds');
+    assert.ok(Math.abs(strengths[3].duration-strengths[2].duration)<=1,'maximum discharge duration is stable within one animation frame');
+    press();frames(1,10001);
     assert.ok(charge.visible && flightStatus.charging && flightStatus.charge===1);
     assert.ok(!beam.visible && lasers.children.every(o=>!o.visible),'holding charges without firing');
     assert.equal(api.beginFire('keyboard'),false,'a second source cannot steal a held trigger');
@@ -115,13 +130,34 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     assert.equal(flightStatus.cooldown,3);assert.ok(!charge.visible);
     assert.equal(api.beginFire('keyboard'),false,'charged beam locks every trigger during cooldown');
     shoot();assert.ok(lasers.children.every(o=>!o.visible));
-    frames(50);assert.ok(!beam.visible && flightStatus.cooldown>2);
-    frames(140);assert.equal(flightStatus.cooldown,0);
-    press();frames(30);canvas.listeners.get('pointercancel')(mouse);release();
+    frames(50);assert.ok(beam.visible && flightStatus.cooldown>2);
+    frames(50);assert.ok(!beam.visible);
+    frames(90);assert.equal(flightStatus.cooldown,0);
+    press();frames(1,16000);canvas.listeners.get('pointercancel')(mouse);release();frames(1,5000);
     assert.ok(!beam.visible && !charge.visible && flightStatus.cooldown===0,'pointer cancellation never discharges');
     press();frames(30);canvas.listeners.get('lostpointercapture')(mouse);release();assert.ok(!beam.visible);
     api.beginFire('keyboard');frames(80);api.endFire('button');assert.ok(flightStatus.charging,'release belongs to its initiating control');
     api.endFire('keyboard');assert.ok(beam.visible && flightStatus.cooldown===3,'keyboard uses the same charged cannon');
+    frames(190);
+    for (const source of ['mouse','button','keyboard']) {
+      if(source==='mouse')press();else api.beginFire(source);
+      frames(1,10000);
+      const coldColor=charge.material.color.clone();
+      assert.ok(flightStatus.charging && !beam.visible);
+      frames(1,5001);
+      assert.ok(flightStatus.overcharge>=.5 && flightStatus.autoFireIn<5,'overheating warns after fifteen seconds');
+      assert.ok(charge.material.color.r>coldColor.r && charge.material.color.g<coldColor.g,'charge progressively turns red');
+      frames(1,4998);assert.ok(flightStatus.charging && !beam.visible,'holding does not fire before twenty seconds');
+      frames(1,2);
+      assert.ok(beam.visible && !flightStatus.charging && !charge.visible,'twenty seconds automatically discharges every input source');
+      assert.ok(flightStatus.cooldown>2.9);
+      frames(190);const remainingLasers=lasers.children.filter(o=>o.visible).length;
+      if(source==='mouse')release();else api.endFire(source);
+      assert.ok(!beam.visible && flightStatus.cooldown===0,'releasing an auto-fired trigger never fires a second time');
+      assert.equal(lasers.children.filter(o=>o.visible).length,remainingLasers);
+    }
+    press();time+=5000;release();
+    assert.ok(beam.scale.distanceTo(strengths[1].size)<1e-8,'release between frames uses the actual held duration');
     frames(190);
     press();frames(50);api.setActive(false);release();assert.ok(!beam.visible && !charge.visible);api.setActive(true);
     frames(1);assert.equal(flightStatus.idle,false,'resuming does not count hidden-tab time as idle flight');

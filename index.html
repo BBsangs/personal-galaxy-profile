@@ -19,13 +19,13 @@
     <a class="skip-link" href="#resume">跳到文字简历</a>
     <header class="site-header">
       <a class="brand" href="#explore" aria-label="沈均来，回到探索世界"><span class="brand-name">沈均来<small>A DEVELOPER’S UNIVERSE</small></span></a>
-      <div class="header-trace" aria-hidden="true"><i></i><span></span><i></i></div><div class="header-actions"><label class="destination"><small>JUMP DRIVE</small><span class="visually-hidden">快速到达站点</span><select id="destination" disabled><option value="">快速到达…</option></select></label><a class="download-link" href="#resume"><small>PROFILE ARCHIVE</small><span>文字履历</span></a></div>
+      <div class="header-actions"><label class="destination"><small>JUMP DRIVE</small><span class="visually-hidden">快速到达站点</span><select id="destination" disabled><option value="">快速到达…</option></select></label><a class="download-link" href="#resume"><small>PROFILE ARCHIVE</small><span>文字履历</span></a></div>
     </header>
 
     <main>
       <section id="explore" class="explore-view" aria-label="交互式履历星域">
         <h1 class="visually-hidden">沈均来的 3D 履历星域</h1>
-        <div id="world" class="world" role="region" aria-label="星际飞船，WASD 或方向键飞行，A D 可原地转向，空格刹车，Shift 加速，R 归航，M 全景。鼠标左键或 J 短按开火，长按蓄力，松开发射激光炮。触屏拖动摇杆飞行，按住开火键蓄力。靠近站点自动展示履历。" tabindex="0">
+        <div id="world" class="world" role="region" aria-label="星际飞船，WASD 或方向键飞行，A D 可原地转向，空格刹车，Shift 加速，R 归航，M 全景。鼠标左键或 J 短按开火，长按 10 秒蓄满，15 秒过热告警，20 秒自动发射；松手可提前发射激光炮。触屏拖动摇杆飞行，按住开火键蓄力。靠近站点自动展示履历。" tabindex="0">
           <div class="world-loading">
             <div class="mission-console">
               <div class="mission-copy"><span class="mission-id">SJ / DEEP SPACE NETWORK</span><h2>履历星域<span>正在建立连接</span></h2><p id="build-status" role="status">载入飞行系统…</p><div class="build-meter"><span id="build-percent" aria-hidden="true">0<small>%</small></span><div><span>世界构建</span><progress id="build-progress" max="100" value="0" aria-label="世界构建进度"></progress></div></div><ol class="build-stages"><li data-phase="12">信号接入<span>连接中</span></li><li data-phase="42">星域测绘<span>等待</span></li><li data-phase="82">群岛构建<span>等待</span></li><li data-phase="100">航线校准<span>等待</span></li></ol><a class="build-fallback" href="#resume" hidden>阅读文字简历</a></div>
@@ -37,7 +37,6 @@
             <div class="billboard-face" tabindex="0" aria-label="履历内容，可滚动"><div class="billboard-meta"><span id="billboard-category"></span><span class="billboard-status">已抵达</span></div><h2 id="billboard-title"></h2><div id="billboard-content"></div></div>
           </section>
         </div>
-        <div class="cockpit-frame" aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>
         <p id="location-status" class="visually-hidden" role="status"></p>
         <details class="map-panel">
           <summary><span class="radar-symbol" aria-hidden="true"></span><span>星图 <small>NAVIGATION</small></span><span id="visited-count">0 / 17</span><span class="map-disclosure" aria-hidden="true">＋</span></summary>
@@ -48,7 +47,7 @@
         </details>
         <div id="warp" aria-hidden="true"><div class="warp-stars"></div><div class="warp-core"></div><p><small>HYPERSPACE</small><span id="warp-destination"></span></p></div>
         <div class="touch-controls" aria-label="触屏飞行控制"><button id="joystick" type="button" aria-label="飞行摇杆：拖动向前后推进和左右转向；也可使用 WASD 或方向键"><span class="dial-ticks" aria-hidden="true"></span><span class="joystick-ring" aria-hidden="true"></span><span class="joystick-thumb" aria-hidden="true"></span></button><span class="joystick-caption">拖动驾驶 · 松手停止推进</span></div>
-        <div class="weapon-control"><span class="dial-ticks" aria-hidden="true"></span><span class="weapon-ring" aria-hidden="true"></span><button id="fire-laser" type="button" aria-keyshortcuts="J" aria-label="短按发射激光，长按蓄力，松开发射激光炮"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 5v9m0 12v9M5 20h9m12 0h9"/><circle cx="20" cy="20" r="9"/><circle cx="20" cy="20" r="2"/></svg><span id="weapon-label">激光就绪</span><small id="weapon-hint">长按蓄力</small></button><progress class="visually-hidden" id="weapon-progress" max="1" value="0" aria-label="激光蓄力与冷却进度"></progress><span id="weapon-announcement" class="visually-hidden" role="status"></span></div>
+        <div class="weapon-control"><span class="dial-ticks" aria-hidden="true"></span><span class="weapon-ring" aria-hidden="true"></span><button id="fire-laser" type="button" aria-keyshortcuts="J" aria-label="短按发射激光，长按 10 秒蓄满，15 秒过热告警，20 秒自动发射；松手可提前发射激光炮"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 5v9m0 12v9M5 20h9m12 0h9"/><circle cx="20" cy="20" r="9"/><circle cx="20" cy="20" r="2"/></svg><span id="weapon-label">激光就绪</span><small id="weapon-hint">长按 · 10秒满</small></button><progress class="visually-hidden" id="weapon-progress" max="1" value="0" aria-label="激光蓄力与冷却进度"></progress><span id="weapon-announcement" class="visually-hidden" role="status"></span></div>
         <aside id="flight-guide" class="flight-guide" aria-label="飞行提示" aria-live="polite" aria-atomic="true" hidden><strong id="guide-title"></strong><p id="guide-copy"></p><button id="dismiss-guide" type="button" aria-label="暂时关闭提示">×</button></aside>
         <div class="sector-hud"><span class="sector-signal" aria-hidden="true"></span><span>当前星域</span><strong id="sector-name">基本资料</strong></div>
         <div class="flight-toolbar" role="group" aria-label="飞行菜单"><span class="dial-ticks" aria-hidden="true"></span><button id="reset-car" title="R 归航至起点" aria-keyshortcuts="R"><kbd>R</kbd><span>归航</span></button><button id="overview" aria-pressed="false" aria-keyshortcuts="M" title="M 切换全景与飞船视角"><kbd>M</kbd><span id="overview-label">全景</span></button><div class="zoom-controls" role="group" aria-label="场景缩放"><button data-zoom="1.25" aria-label="缩小场景" title="缩小 · 滚轮或双指也可缩放"><b>−</b><span>缩小</span></button><button data-zoom="0.8" aria-label="放大场景" title="放大 · 全景中放大会聚焦飞船"><b>+</b><span>放大</span></button></div></div>

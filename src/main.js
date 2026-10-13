@@ -131,7 +131,7 @@ function renderGuide() {
   const touch = controlMode === 'touch';
   const tips = [
     ['试着驾驶飞船', touch ? '拖动右下摇杆飞行，横向拖动可原地转向。' : '<kbd>W / S</kbd> 前进、后退 · <kbd>A / D</kbd> 原地转向<br><kbd>Shift</kbd> 加速 · <kbd>空格</kbd> 刹车'],
-    ['来一发蓄力激光', touch ? '按住左下开火键蓄力，松开发射粗激光炮；冷却 3 秒后可再次开火。' : '按住<kbd>鼠标左键 / J</kbd>蓄力，松开发射粗激光炮；冷却 3 秒后可再次开火。'],
+    ['来一发蓄力激光', (touch ? '按住左下开火键' : '按住<kbd>鼠标左键 / J</kbd>') + '蓄力，10 秒满功率；继续按住会变红，15 秒过热告警，20 秒自动发射。随时松手可发射，冷却 3 秒。'],
     ['去下一座岛屿看看', '靠近岛屿会自动展开履历，也可用「快速到达」直接跃迁。'],
   ];
   if (guideIndex < 0) return;
@@ -169,17 +169,21 @@ function setControlMode(mode) {
   if (mode === 'touch') $('.map-panel').open = false;
   renderGuide();
 }
-function updateFlightStatus({ charge, cooldown, charging, idle, piloting, heading }) {
+function updateFlightStatus({ charge, chargeLimit = 10, overcharge = 0, autoFireIn = 20, cooldown, charging, idle, piloting, heading }) {
   if (piloting) noteControl();
   flightIdle = idle;
   syncGuide();
-  const state = cooldown > 0 ? 'cooldown' : charging ? (charge >= 1 ? 'charged' : 'charging') : 'ready';
-  const label = cooldown > 0 ? `冷却 ${cooldown.toFixed(1)}s` : charging ? (charge >= 1 ? '已蓄满' : `蓄力 ${Math.round(charge * 100)}%`) : '激光就绪';
+  const state = cooldown > 0 ? 'cooldown' : !charging ? 'ready' : overcharge >= .5 ? 'warning' : overcharge > 0 ? 'overcharging' : charge >= 1 ? 'charged' : 'charging';
+  const label = state === 'cooldown' ? `冷却 ${cooldown.toFixed(1)}s` : state === 'warning' ? '过热警告' : state === 'overcharging' ? '能量过载' : charging ? (charge >= 1 ? '已蓄满' : `蓄力 ${Math.round(charge * 100)}%`) : '激光就绪';
   if ($('#weapon-label').textContent !== label) $('#weapon-label').textContent = label;
+  const hint = cooldown > 0 ? '等待冷却' : charging ? (charge >= 1 ? `自动 ${autoFireIn.toFixed(1)}s` : `${(charge * chargeLimit).toFixed(1)} / ${chargeLimit}s`) : `长按 · ${chargeLimit}秒满`;
+  if ($('#weapon-hint').textContent !== hint) $('#weapon-hint').textContent = hint;
   const level = cooldown > 0 ? cooldown / 3 : charge;
   $('#weapon-progress').value = level;
   const fill = `${Math.round(level * 100)}%`;
   if ($('.weapon-control').style.getPropertyValue('--weapon-fill') !== fill) $('.weapon-control').style.setProperty('--weapon-fill', fill);
+  const heatColor = `rgb(${Math.round(201 + overcharge * 54)}, ${Math.round(182 - overcharge * 108)}, ${Math.round(255 - overcharge * 205)})`;
+  if ($('.weapon-control').style.getPropertyValue('--overheat-color') !== heatColor) $('.weapon-control').style.setProperty('--overheat-color', heatColor);
   if (Number.isFinite(heading)) {
     const degrees = ((Math.round(heading * 180 / Math.PI) % 360) + 360) % 360;
     const direction = `${String(degrees).padStart(3, '0')}°`;
@@ -189,8 +193,7 @@ function updateFlightStatus({ charge, cooldown, charging, idle, piloting, headin
   if (state !== weaponState) {
     weaponState = state;
     $('.weapon-control').dataset.state = state;
-    $('#weapon-hint').textContent = charging ? '松开发射' : cooldown > 0 ? '等待冷却' : '长按蓄力';
-    $('#weapon-announcement').textContent = state === 'cooldown' ? '激光炮冷却中' : state === 'charged' ? '蓄力完成，松开发射' : state === 'charging' ? '正在蓄力' : '激光就绪';
+    $('#weapon-announcement').textContent = state === 'cooldown' ? '激光炮冷却中' : state === 'warning' ? '过热警告，即将自动发射；松手可立即发射' : state === 'overcharging' ? '已满功率，继续蓄力正在过载' : state === 'charged' ? '蓄力完成，松开发射' : state === 'charging' ? '正在蓄力' : '激光就绪';
   }
 }
 $('#dismiss-guide').addEventListener('click', () => { guideUntil = 0; nextGuideAt = performance.now() + 30000; syncGuide(); world.focus({ preventScroll: true }); });

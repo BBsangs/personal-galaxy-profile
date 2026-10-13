@@ -7,17 +7,13 @@
 }
 
 /* Circular controls, open linework, and a clear center for the flight scene. */
-.site-header { position: fixed; inset: 0 0 auto; z-index: 3; height: 86px; padding: 16px 36px; display: flex; align-items: center; gap: 32px; background: linear-gradient(#030b16d9, #030b1600); pointer-events: none; }
+.site-header { position: fixed; inset: 0 0 auto; z-index: 3; height: 86px; padding: 16px 36px; display: flex; align-items: center; justify-content: space-between; gap: 32px; pointer-events: none; }
 .site-header a, .site-header button, .site-header label { pointer-events: auto; }
 .brand { display: flex; align-items: center; min-height: 48px; padding: 0 0 0 16px; position: relative; }
 .brand::before { content: ''; position: absolute; left: 0; top: 8px; width: 5px; height: 28px; background: linear-gradient(var(--hud-cyan) 0 0) top / 5px 6px no-repeat, repeating-linear-gradient(transparent 0 3px, var(--hud-stroke) 3px 4px); }
 .brand-name { font-size: 18px; font-weight: 550; letter-spacing: 3px; line-height: 1.5; color: var(--hud-ink); text-shadow: 0 1px 8px #000; }
 .brand-name small { display: block; font: 8px ui-monospace, monospace; letter-spacing: 1.7px; color: var(--hud-muted); }
-.header-trace { position: relative; flex: 1; min-width: 50px; height: 26px; display: flex; align-items: center; gap: 14px; opacity: .7; }
-.header-trace i { flex: 1; height: 12px; border-top: 1px solid var(--hud-stroke); border-bottom: 1px solid #8be9dc20; transform: skewX(-35deg); }
-.header-trace i:last-child { transform: skewX(35deg); }
-.header-trace span { width: 36px; height: 5px; background: repeating-linear-gradient(90deg, var(--hud-cyan) 0 2px, transparent 2px 8px); }
-.header-actions { display: flex; align-items: center; gap: 26px; }
+.header-actions { display: flex; align-items: center; gap: 26px; text-shadow: 0 2px 8px #020912; }
 .destination { position: relative; display: flex; flex-direction: column; }
 .destination::after, .download-link::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--hud-cyan) 0 18px, #8be9dc38 18px, transparent); }
 .destination > small, .download-link > small { font: 8px ui-monospace, monospace; letter-spacing: 1.5px; color: var(--hud-muted); }
@@ -27,14 +23,6 @@
 .download-link { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 8px; min-height: 53px; padding: 0 4px 4px; font-size: 12px; white-space: nowrap; color: var(--hud-ink); }
 .download-link:hover { color: var(--hud-cyan); }
 
-.cockpit-frame { position: absolute; inset: 96px 18px 16px; z-index: 1; pointer-events: none; }
-.cockpit-frame::before { content: ''; position: absolute; inset: -96px -18px -16px; background: linear-gradient(0deg, #020912b3, transparent 26%), linear-gradient(90deg, #02091266, transparent 20% 80%, #02091266); }
-.cockpit-frame i { position: absolute; width: 62px; height: 112px; opacity: .55; background: linear-gradient(var(--hud-cyan) 0 0) left top / 34px 1px no-repeat, linear-gradient(var(--hud-stroke) 0 0) left 24px / 1px 65px no-repeat, linear-gradient(135deg, transparent 48%, var(--hud-cyan) 49% 51%, transparent 52%) left top / 24px 24px no-repeat, repeating-linear-gradient(var(--hud-stroke) 0 1px, transparent 1px 9px) 5px 36px / 4px 38px no-repeat; }
-.cockpit-frame i:nth-child(1) { left: 0; top: 0; }
-.cockpit-frame i:nth-child(2) { right: 0; top: 0; transform: scaleX(-1); }
-.cockpit-frame i:nth-child(3) { left: 0; bottom: 0; transform: scaleY(-1); }
-.cockpit-frame i:nth-child(4) { right: 0; bottom: 0; transform: scale(-1); }
-.cockpit-frame > span { position: absolute; left: 28%; right: 28%; bottom: 0; height: 9px; background: repeating-linear-gradient(90deg, var(--hud-stroke) 0 1px, transparent 1px 12px); mask-image: linear-gradient(90deg, transparent, #000 20% 80%, transparent); }
 
 .dial-ticks { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -1deg, var(--hud-stroke) 0deg 1deg, transparent 1deg 6deg); -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); pointer-events: none; }
 .flight-toolbar { position: absolute; left: 32px; bottom: 38px; width: 216px; height: 216px; z-index: 2; pointer-events: none; }
@@ -65,6 +53,10 @@ kbd { display: inline-grid; place-items: center; min-width: 18px; padding: 0 3px
 #fire-laser small { font-size: 8px; color: var(--hud-muted); }
 .weapon-control[data-state="charging"], .weapon-control[data-state="charged"] { --weapon-color: #c9b6ff; }
 .weapon-control[data-state="charged"] #fire-laser { box-shadow: 0 0 28px #b99aff24, inset 0 0 20px #b99aff12; }
+.weapon-control[data-state="overcharging"], .weapon-control[data-state="warning"] { --weapon-color: var(--overheat-color); }
+.weapon-control[data-state="warning"] .weapon-ring { animation: overheat-warning .8s ease-in-out infinite alternate; }
+.weapon-control[data-state="warning"] #weapon-label { font-weight: 650; }
+@keyframes overheat-warning { to { opacity: .5; } }
 .weapon-control[data-state="cooldown"] { --weapon-color: #efbd8c; }
 
 .sector-hud { position: absolute; top: 113px; left: 38px; z-index: 2; display: grid; grid-template-columns: 28px auto; gap: 6px 12px; align-items: center; color: var(--hud-ink); pointer-events: none; text-shadow: 0 2px 8px #020912; }
@@ -73,8 +65,7 @@ kbd { display: inline-grid; place-items: center; min-width: 18px; padding: 0 3px
 .sector-signal { grid-row: 1 / 3; width: 27px; height: 42px; border: 1px solid var(--hud-stroke); border-right-color: transparent; border-radius: 50%; position: relative; }
 .sector-signal::after { content: ''; position: absolute; inset: 7px 6px; border: 1px solid var(--hud-cyan); border-left-color: transparent; border-radius: 50%; }
 .flight-readout { position: absolute; bottom: 44px; left: 52%; transform: translateX(-50%); z-index: 2; min-width: 290px; color: var(--hud-ink); text-align: center; pointer-events: none; text-shadow: 0 2px 8px #020912; }
-.telemetry-row { display: flex; align-items: center; justify-content: center; gap: 24px; padding-bottom: 13px; position: relative; }
-.telemetry-row::after { content: ''; position: absolute; bottom: 0; left: 8%; right: 8%; height: 5px; background: repeating-linear-gradient(90deg, var(--hud-stroke) 0 1px, transparent 1px 9px); }
+.telemetry-row { display: flex; align-items: center; justify-content: center; gap: 24px; }
 #flight-mode { font-size: 11px; letter-spacing: 3px; }
 .heading-readout { display: flex; align-items: baseline; gap: 9px; }
 .heading-readout small { font-size: 9px; color: var(--hud-muted); }
@@ -155,7 +146,7 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
 .flight-guide p { font-size: 12px; line-height: 1.9; margin: 0; }
 #dismiss-guide { position: absolute; top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 10px; font-size: 20px; color: var(--hud-cyan); pointer-events: auto; }
 @keyframes guide-arrival { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.is-building .cockpit-frame, .is-building .flight-readout, .is-building .weapon-control, .is-warping .weapon-control, .is-overview .weapon-control { visibility: hidden; }
+.is-building .flight-readout, .is-building .weapon-control, .is-warping .weapon-control, .is-overview .weapon-control { visibility: hidden; }
 .world.error ~ .weapon-control, .world.error ~ .touch-controls { visibility: hidden; }
 
 @media (max-width: 1200px) {
@@ -169,7 +160,6 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
 }
 @media (max-width: 767px) {
   .site-header { height: 76px; padding: 10px 16px; gap: 12px; justify-content: space-between; }
-  .header-trace { display: none; }
   .brand { padding-left: 11px; }
   .brand-name { font-size: 16px; letter-spacing: 1px; white-space: nowrap; }
   .brand-name small { display: none; }
@@ -217,10 +207,6 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
   .map-readout { flex-direction: column; gap: 3px; }
   #map-date { text-align: left; }
   .flight-guide { top: 41%; width: min(340px, calc(100% - 40px)); padding: 14px 20px; }
-  .cockpit-frame { inset: 84px 7px 10px; }
-  .cockpit-frame::before { inset: -84px -7px -10px; }
-  .cockpit-frame i { width: 36px; height: 78px; opacity: .35; }
-  .cockpit-frame > span { left: 40%; right: 40%; }
 }
 @media (max-width: 360px) {
   .site-header { padding-inline: 12px; }
@@ -235,7 +221,6 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
 }
 @media (min-width: 600px) and (max-height: 600px) {
   .site-header { height: 65px; padding-block: 6px; }
-  .cockpit-frame { top: 74px; }
   .sector-hud { top: 84px; }
   .flight-readout { top: 78px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: auto; }
   .pilot-keys { display: none; }

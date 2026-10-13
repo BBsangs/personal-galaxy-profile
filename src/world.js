@@ -467,6 +467,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   });
   const laserDirection = new THREE.Vector3(), laserUp = new THREE.Vector3(0, 1, 0);
   const chargeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: '#8cefff', transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  const chargeCold = chargeGlow.material.color.clone(), chargeHot = new THREE.Color('#ff4a32');
   chargeGlow.name = 'laser-charge'; chargeGlow.position.set(0, 0, 4.5); chargeGlow.visible = false; vehicle.add(chargeGlow);
   const chargedBeam = group(scene); chargedBeam.name = 'charged-laser'; chargedBeam.visible = false;
   const beamGeometry = new THREE.CylinderGeometry(1, 1, 1, 12);
@@ -474,35 +475,39 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   const beamHalo = mesh(beamGeometry, new THREE.MeshBasicMaterial({ color: '#5bdcff', transparent: true, opacity: .32, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), chargedBeam);
   beamHalo.scale.set(2.4, 1.01, 2.4);
   chargedBeam.traverse(object => { object.castShadow = object.receiveShadow = false; });
-  let laserIndex = 0, fireSource = null, chargeTime = 0, cooldown = 0, beamLife = 0, beamDuration = 0, beamWidth = 1, idleTime = 0;
+  const maxChargeTime = 10, autoFireTime = 20;
+  let laserIndex = 0, fireSource = null, chargeTime = 0, chargeStartedAt = 0, cooldown = 0, beamLife = 0, beamDuration = 0, beamWidth = 1, idleTime = 0;
+  const heldSeconds = () => Math.min(autoFireTime, (performance.now() - chargeStartedAt) / 1000);
   const isPiloting = () => Object.values(input).some(Boolean) || Math.abs(ship.speed) > .15 || fireSource !== null || cooldown > 0;
-  function reportFlightStatus() { onFlightStatus({ charge: Math.min(1, chargeTime / 1.2), cooldown, charging: fireSource !== null, idle: idleTime >= 8, piloting: isPiloting(), heading: ship.heading }); }
+  function reportFlightStatus() { onFlightStatus({ charge: Math.min(1, chargeTime / maxChargeTime), chargeLimit: maxChargeTime, overcharge: Math.max(0, (chargeTime - maxChargeTime) / (autoFireTime - maxChargeTime)), autoFireIn: autoFireTime - chargeTime, cooldown, charging: fireSource !== null, idle: idleTime >= 8, piloting: isPiloting(), heading: ship.heading }); }
   function cancelFire() { fireSource = null; weaponPointer = null; chargeTime = 0; chargeGlow.visible = false; reportFlightStatus(); }
   function clearLasers() { cancelFire(); chargedBeam.visible = false; beamLife = 0; lasers.forEach(laser => { laser.life = 0; laser.object.visible = false; }); }
   function beginFire(source) {
     if (!active || assembly || transit || overview || contextLost || cooldown > 0 || fireSource !== null) return false;
-    fireSource = source; chargeTime = 0; idleTime = 0; reportFlightStatus(); return true;
+    fireSource = source; chargeStartedAt = performance.now(); chargeTime = 0; idleTime = 0; reportFlightStatus(); return true;
   }
   function endFire(source, cancel = false) {
     if (fireSource !== source) return;
-    const power = Math.min(1, chargeTime / 1.2), charged = chargeTime >= .3;
+    const duration = heldSeconds(), power = Math.min(1, duration / maxChargeTime), charged = duration >= .3;
+    const heat = Math.max(0, (duration - maxChargeTime) / (autoFireTime - maxChargeTime));
     cancelFire();
     if (cancel || !active || assembly || transit || overview || contextLost) return;
     idleTime = 0; cooldown = charged ? 3 : .14;
-    fireLaser(charged ? power : 0); reportFlightStatus();
+    fireLaser(charged ? power : 0, heat); reportFlightStatus();
   }
-  function fireLaser(power = 0) {
+  function fireLaser(power = 0, heat = 0) {
     updateVehicle(); vehicle.updateMatrixWorld(true);
     laserDirection.set(Math.sin(ship.heading), 0, Math.cos(ship.heading));
     if (power > 0) {
-      const length = reduce ? 18 : 65 + power * 65;
-      beamWidth = .45 + power * .9;
+      const length = reduce ? 18 : 40 + power * 110;
+      beamWidth = .3 + power * 2.2;
       chargeGlow.getWorldPosition(chargedBeam.position);
       chargedBeam.position.addScaledVector(laserDirection, length / 2);
       chargedBeam.quaternion.setFromUnitVectors(laserUp, laserDirection);
       chargedBeam.scale.set(beamWidth, length, beamWidth);
       beamCore.material.opacity = 1; beamHalo.material.opacity = .32;
-      beamLife = beamDuration = reduce ? .1 : .35 + power * .3;
+      beamHalo.material.color.copy(chargeCold).lerp(chargeHot, heat);
+      beamLife = beamDuration = reduce ? .1 : .2 + power * 1.3;
       chargedBeam.visible = true;
       return;
     }
@@ -630,7 +635,10 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     const dt=lastTime?Math.min((time-lastTime)/1000,.05):0;lastTime=time;elapsed+=dt;
     portalCooldown=Math.max(0,portalCooldown-dt);
     cooldown = Math.max(0, cooldown - dt);
-    if (fireSource !== null) chargeTime = Math.min(1.2, chargeTime + dt);
+    if (fireSource !== null) {
+      chargeTime = heldSeconds();
+      if (chargeTime >= autoFireTime) endFire(fireSource);
+    }
     idleTime = isPiloting() || assembly || transit || overview ? 0 : idleTime + dt;
     if (overview && Object.values(input).some(Boolean)) setOverview(false);
     if(assembly){
@@ -668,7 +676,10 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     trailPoints.material.size=3+enginePower*3;
     updateVehicle();
     chargeGlow.visible = fireSource !== null;
-    chargeGlow.scale.setScalar((reduce ? .8 : 1.2) + chargeTime / 1.2 * 4);
+    const heat = Math.max(0, (chargeTime - maxChargeTime) / (autoFireTime - maxChargeTime));
+    chargeGlow.scale.setScalar((reduce ? .8 : 1.2) + Math.min(1, chargeTime / maxChargeTime) * 5);
+    chargeGlow.material.color.copy(chargeCold).lerp(chargeHot, heat);
+    chargeGlow.material.opacity = heat >= .5 && !reduce ? .7 + Math.sin(elapsed * 10) * .2 : .8;
     if (beamLife > 0) {
       beamLife = Math.max(0, beamLife - dt);
       const fade = beamLife / beamDuration;
