@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.DS_Store
+*.pdf
+tests/fixtures/resume-original.txt
+.env
+.env.*

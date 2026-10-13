@@ -1,0 +1,225 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
+import { stations, portals, galaxies } from '../src/content.js';
+import { spawn } from '../src/drive.js';
+
+// No browser or GPU: exercise scene construction and flight lifecycle with a renderer stub.
+test('scene initializes, traverses portals, finishes warp, resets and disposes', async () => {
+  const nodes = new Map();
+  const node = () => ({
+    style: {}, className: '', textContent: '', children: [], hidden: false, listeners: new Map(),
+    clientWidth: 1280, clientHeight: 800, offsetWidth: 430, offsetHeight: 500,
+    setAttribute() {}, setPointerCapture() {}, remove() {},
+    addEventListener(name, listener) { this.listeners.set(name, listener); },
+    removeEventListener(name, listener) { if(this.listeners.get(name)===listener)this.listeners.delete(name); },
+    prepend(child) { this.children.unshift(child); }, append(child) { this.children.push(child); },
+    getBoundingClientRect() { return { left: 0, top: 0 }; },
+    querySelector(selector) { if (!nodes.has(selector)) nodes.set(selector, node()); return nodes.get(selector); },
+    getContext() { return { createRadialGradient() { return { addColorStop() {} }; }, fillRect() {}, fillText() {}, createImageData(w,h) { return { data: new Uint8ClampedArray(w*h*4) }; }, putImageData() {} }; },
+  });
+  const saved = {};
+  let nextFrame, scene, camera, disposed = false, compiled = false;
+  const globals = {
+    document: { querySelector: selector => root.querySelector(selector), createElement: node },
+    devicePixelRatio: 1, matchMedia: () => ({ matches: false }),
+    ResizeObserver: class { observe() {} disconnect() {} },
+    requestAnimationFrame: callback => { nextFrame = callback; return 1; },
+    cancelAnimationFrame: () => { nextFrame = null; },
+    __sceneTestThree: { ...THREE, WebGLRenderer: class {
+      constructor() { this.domElement = node(); this.shadowMap = {}; }
+      setPixelRatio() {} getPixelRatio() { return 1; } setSize() {}
+      render(s, c) { scene = s; camera = c; }
+      async compileAsync() { compiled = true; }
+      dispose() { disposed = true; }
+    } },
+  };
+  const root = node();
+  for (const [key, value] of Object.entries(globals)) { saved[key] = Object.getOwnPropertyDescriptor(globalThis, key); Object.defineProperty(globalThis,key,{value,writable:true,configurable:true}); }
+  let api;
+  try {
+    let source=readFileSync(new URL('../src/world.js',import.meta.url),'utf8');
+    source=source.replace("import * as THREE from 'three';",'const THREE = globalThis.__sceneTestThree;');
+    for (const file of ['content.js','drive.js','galaxy.js','planets.js','date-text.js']) source=source.replace(`'./${file}'`,JSON.stringify(new URL(`../src/${file}`,import.meta.url).href));
+    const { createWorld }=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+    const arrivals=[],gates=[];let contextLosses=0;
+    const idle={up:false,down:false,left:false,right:false,boost:false,brake:false};
+    const progress=[],views=[];
+    api=await createWorld(root,idle,s=>arrivals.push(s?.id||null),()=>{contextLosses++;},id=>gates.push(id),p=>progress.push(p),v=>views.push(v));
+    assert.ok(compiled);
+    assert.equal(progress.at(-1),90,'construction waits for the visible reveal before reporting completion');
+    const plaques=[];scene.traverse(o=>{if(o.name==='island-timeline')plaques.push(o);});
+    const fixedLettering=()=>plaques.map(p=>p.getObjectByName('date-sculpture').scale.toArray());
+    const originalLettering=fixedLettering();
+    assert.equal(plaques.length,17);
+    for(const plaque of plaques) {
+      const text=plaque.getObjectByName('date-sculpture');
+      assert.equal(text.geometry.type,'TextGeometry');
+      assert.ok(text.castShadow && text.receiveShadow);
+      assert.ok(text.geometry.boundingBox.max.z-text.geometry.boundingBox.min.z>.3);
+      assert.equal(text.userData.text,plaque.userData.lines[0]);
+      assert.equal(plaque.position.y,.56,'lettering sits directly on the island ground');
+    }
+    for (const station of stations.filter(s=>s.job||s.project)) assert.ok(plaques.some(p=>p.userData.lines[0]===(station.job||station.project).date));
+    for (const kind of ['ocean','gas','rock','ice']) {
+      const planet=scene.getObjectByName(`planet-${kind}`);
+      assert.ok(planet.getObjectByName('planet-surface').material.map);
+      assert.ok(planet.getObjectByName('planet-clouds').material.transparent);
+      assert.ok(planet.getObjectByName('planet-atmosphere').material.isShaderMaterial);
+      assert.equal(planet.getObjectByName('planet-timeline'),undefined,'background planets have no labels');
+      const center=planet.position.clone().applyMatrix4(camera.matrixWorldInverse);
+      for(const station of stations) {
+        const island=new THREE.Vector3(station.x,3,station.z).applyMatrix4(camera.matrixWorldInverse);
+        assert.ok(Math.hypot(center.x-island.x,center.y-island.y)>planet.userData.visualRadius+station.radius+7,`${kind} overlaps ${station.id} in the projected view`);
+      }
+    }
+    let time=0;
+    const frames=count=>{for(let i=0;i<count;i++){const callback=nextFrame;nextFrame=null;assert.ok(callback);time+=1000/60;callback(time);}};
+    const reveal=api.reveal();
+    assert.equal(api.reveal(),reveal);
+    assert.equal(scene.getObjectByName('island-about').scale.x,.015);
+    idle.up=true;api.setActive(true);frames(30);
+    assert.ok(scene.getObjectByName('island-about').position.y<0);
+    assert.ok(progress.at(-1)<100);
+    api.setActive(false);assert.equal(nextFrame,null,'hidden tab pauses construction');
+    api.setActive(true);frames(60);idle.up=false;frames(40);await reveal;
+    assert.equal(progress.at(-1),100);
+    assert.ok(progress.every((p,i)=>!i||p>=progress[i-1]));
+    assert.equal(Math.abs(scene.getObjectByName('island-about').position.y),0);
+    assert.equal(scene.getObjectByName('island-about').scale.x,1);
+    assert.equal(scene.getObjectByName('planet-ocean').scale.x,1);
+    assert.equal(scene.getObjectByName('x-wing').position.x,spawn.x);
+    assert.equal(scene.getObjectByName('x-wing').position.z,spawn.z);
+    frames(90);
+    const canvas=root.children[0];
+    const visibleHeight=()=>camera.top-camera.bottom;
+    assert.ok(Math.abs(visibleHeight()-80)<.01);
+    const lasers=scene.getObjectByName('laser-bolts');
+    const shoot=()=>canvas.listeners.get('pointerdown')({button:0,pointerType:'mouse'});
+    canvas.listeners.get('pointerdown')({button:2,pointerType:'mouse'});assert.equal(lasers.children.filter(o=>o.visible).length,0);
+    shoot();assert.equal(lasers.children.filter(o=>o.visible).length,4);
+    shoot();assert.equal(lasers.children.filter(o=>o.visible).length,4,'duplicate clicks are rate limited');
+    const bolt=lasers.children.find(o=>o.visible),boltStart=bolt.position.clone();
+    frames(8);assert.ok(bolt.position.distanceTo(boltStart)>10,'bolts travel away from the four cannons');
+    frames(30);assert.ok(lasers.children.every(o=>!o.visible),'bolts expire instead of leaving long streaks');
+    api.setActive(false);shoot();assert.ok(lasers.children.every(o=>!o.visible));api.setActive(true);
+    let prevented=false;
+    canvas.listeners.get('wheel')({deltaY:100,deltaMode:0,preventDefault(){prevented=true;}});
+    frames(60);
+    assert.ok(prevented && visibleHeight()>95 && visibleHeight()<100);
+    api.zoomBy(1e6);frames(120);assert.ok(Math.abs(visibleHeight()-320)<.01);
+    assert.deepEqual(fixedLettering(),originalLettering,'island decoration never compensates its size for the camera');
+    api.zoomBy(1e-6);frames(120);assert.ok(Math.abs(visibleHeight()-36)<.01);
+    api.zoomBy(NaN);frames(1);assert.ok(Number.isFinite(visibleHeight()));
+    api.zoomBy(1/.45);frames(120);
+    const touch=(pointerId,clientX)=>({pointerId,clientX,clientY:100,pointerType:'touch'});
+    canvas.listeners.get('pointerdown')(touch(1,100));
+    canvas.listeners.get('pointerdown')(touch(2,200));
+    canvas.listeners.get('pointermove')(touch(2,300));frames(120);
+    assert.ok(Math.abs(visibleHeight()-40)<.01,'spreading fingers zooms in');
+    canvas.listeners.get('pointercancel')(touch(2,300));
+    canvas.listeners.get('pointermove')(touch(1,60));frames(30);
+    assert.ok(Math.abs(visibleHeight()-40)<.01,'one remaining touch cannot zoom');
+    canvas.listeners.get('pointerup')(touch(1,60));
+    api.zoomBy(2);frames(120);
+    const background=scene.children.find(o=>o.material?.isRawShaderMaterial);
+    assert.ok(background && background.frustumCulled===false && background.material.depthWrite===false);
+    api.setOverview(true);frames(150);
+    const overviewHeight=visibleHeight();
+    api.zoomBy(1.25);frames(120);
+    assert.ok(Math.abs(visibleHeight()-overviewHeight*1.25)<.01);
+    api.setOverview(false);
+    assert.ok(visibleHeight()>overviewHeight,'returning to the ship does not snap the camera');
+    frames(150);assert.ok(Math.abs(visibleHeight()-80)<.01);
+    api.setOverview(true);frames(150);
+    assert.ok(Math.abs(visibleHeight()-overviewHeight*1.25)<.01);
+    for (const station of stations) {
+      const point=new THREE.Vector3(station.x,0,station.z).project(camera);
+      assert.ok(Math.abs(point.x)<1 && Math.abs(point.y)<1 && Math.abs(point.z)<1,`${station.title} excluded from overview`);
+    }
+    const galaxyButtons=root.querySelector('.station-labels').children.filter(n=>n.className==='galaxy-label');
+    assert.equal(galaxyButtons.length,4);
+    galaxyButtons[0].listeners.get('click')();assert.equal(gates.at(-1),'about');
+    const galaxy=galaxies[2],hit=new THREE.Vector3(galaxy.x,0,galaxy.z).project(camera);
+    canvas.listeners.get('pointerdown')({button:0,pointerType:'mouse',clientX:(hit.x*.5+.5)*1280,clientY:(-hit.y*.5+.5)*800});
+    assert.equal(gates.at(-1),galaxy.destination,'clicking a galaxy region also selects its destination');
+    assert.ok(lasers.children.every(o=>!o.visible),'overview selects navigation instead of firing');
+    api.zoomBy(.8);assert.equal(views.at(-1),false);
+    const startReturn=visibleHeight();frames(15);assert.ok(visibleHeight()<startReturn && visibleHeight()>80,'zoom-in glides toward the ship');
+    frames(150);assert.ok(Math.abs(visibleHeight()-64)<.01);
+    const shipInView=new THREE.Vector3(spawn.x,3.3,spawn.z).project(camera);
+    assert.ok(Math.abs(shipInView.x)<.25 && Math.abs(shipInView.y)<.25,'zoom-in centers the camera on the current ship');
+    api.zoomBy(1.25);frames(150);
+    api.setOverview(true);frames(150);idle.left=true;frames(1);idle.left=false;
+    assert.equal(views.at(-1),false,'flight controls exit overview');
+    frames(150);assert.ok(Math.abs(visibleHeight()-80)<.01);
+    const vehicle=scene.getObjectByName('x-wing');
+    const flame=scene.getObjectByName('engine-flame');
+    const trail=scene.getObjectByName('engine-trail');
+    const beacon=scene.getObjectByName('return-beacon');
+    const jumpRing=scene.getObjectByName('jump-ring');
+    const destination=stations.find(s=>s.id==='project-6');
+    const jump=api.travel(destination);
+    shoot();assert.ok(lasers.children.every(o=>!o.visible),'warping blocks weapon fire');
+    assert.equal(api.travel(stations[0]),jump,'repeated navigation shares the running transition');
+    api.zoomBy(4);
+    frames(27);assert.ok(vehicle.visible&&vehicle.position.y>4,'ship charges and lifts');
+    frames(25);assert.ok(vehicle.visible&&vehicle.scale.z>1.3,'ship stretches during launch');
+    frames(20);assert.equal(vehicle.visible,false,'ship disappears inside the jump');
+    frames(24);assert.ok(vehicle.visible&&vehicle.position.y>5,'ship reenters above the destination');
+    frames(60);await jump;
+    assert.ok(Math.abs(vehicle.position.x-destination.stop.x)<.01&&Math.abs(vehicle.position.z-destination.stop.z)<.01);
+    assert.deepEqual(vehicle.scale.toArray(),[1,1,1]);assert.equal(jumpRing.visible,false);
+    frames(60);assert.ok(Math.abs(visibleHeight()-80)<.01,'warp preserves the flight zoom after camera settling');
+    assert.equal(arrivals.at(-1),'project-6');
+    assert.equal(background.material.uniforms.uWarp.value,0);
+    const gate=portals[0];
+    const approach=api.travel({ stop: { x:gate.x, z:gate.z } });
+    frames(150); await approach;
+    frames(200);
+    assert.ok(gates.includes(gate.destination));
+    idle.up=true;frames(90);
+    const normalFlame=flame.scale.y;
+    const litParticles=()=>trail.geometry.attributes.color.array.filter((v,i)=>i%3===2&&v>0).length;
+    const normalParticles=litParticles();
+    idle.boost=true;frames(90);
+    assert.ok(flame.scale.y>normalFlame*3,'boost creates a much longer flame');
+    assert.ok(litParticles()>normalParticles*3,'boost creates denser persistent particles');
+    assert.ok(background.material.uniforms.uWarp.value>.4,'boost stretches background stars');
+    const positions=trail.geometry.attributes.position.array,colors=trail.geometry.attributes.color.array;
+    for(let i=0;i<positions.length;i+=3)if(colors[i+2]>0)assert.ok(Math.hypot(positions[i]-vehicle.position.x,positions[i+2]-vehicle.position.z)<22,'boost trail stays close to the ship');
+    idle.up=false;idle.boost=false;frames(180);
+    assert.ok(flame.scale.y<normalFlame,'flames settle after releasing boost');
+    const home=api.reset();assert.equal(api.reset(),home);
+    frames(18);assert.ok(beacon.visible&&beacon.position.y>7,'return launches a beacon');
+    frames(24);assert.ok(!beacon.visible&&jumpRing.visible&&jumpRing.scale.x>6,'beacon blooms into an expanding ring');
+    assert.ok(trail.geometry.attributes.color.array.some(value=>value>0));
+    frames(165);await home;
+    assert.ok(Math.abs(vehicle.position.x-spawn.x)<.01&&Math.abs(vehicle.position.z-spawn.z)<.01);
+    assert.ok(vehicle.visible&&!beacon.visible&&!jumpRing.visible);
+    assert.deepEqual(vehicle.scale.toArray(),[1,1,1]);
+    assert.equal(arrivals.at(-1),null);
+    api.setReducedMotion(true);frames(2);
+    shoot();const quietBolt=lasers.children.find(o=>o.visible),quietPosition=quietBolt.position.clone();
+    frames(3);assert.deepEqual(quietBolt.position.toArray(),quietPosition.toArray(),'reduced motion uses a short stationary cannon flash');
+    frames(8);assert.ok(lasers.children.every(o=>!o.visible));
+    const quietBuild=api.reveal();frames(2);await quietBuild;
+    assert.equal(scene.getObjectByName('island-about').scale.x,1);
+    assert.ok(trail.geometry.attributes.color.array.every(value=>value===0));
+    const quietReturn=api.reset();frames(20);await quietReturn;
+    assert.ok(vehicle.visible&&!beacon.visible&&!jumpRing.visible);
+    assert.equal(arrivals.at(-1),null);
+    api.setReducedMotion(false);
+    const interrupted=api.travel(destination);frames(25);
+    canvas.listeners.get('webglcontextlost')({preventDefault(){}});await interrupted;
+    assert.equal(contextLosses,1);
+    assert.ok(vehicle.visible&&!beacon.visible&&!jumpRing.visible);
+    assert.deepEqual(vehicle.scale.toArray(),[1,1,1]);
+    api.dispose();api=null;assert.ok(disposed);
+    assert.equal(canvas.listeners.size,0,'scene event handlers are removed');
+  } finally {
+    api?.dispose();
+    for(const key of Object.keys(globals)){if(saved[key])Object.defineProperty(globalThis,key,saved[key]);else delete globalThis[key];}
+  }
+});

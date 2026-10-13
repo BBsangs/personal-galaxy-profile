@@ -1,0 +1,273 @@
+import { stations, sections, mapSize, galaxies, portals, billboardMarkup, stationTimeline, profile, profileSummary, portraitMarkup } from './content.js';
+
+const $ = selector => document.querySelector(selector);
+const world = $('#world');
+const billboard = $('#billboard');
+const visited = new Set();
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const input = { up: false, down: false, left: false, right: false, brake: false, boost: false };
+const joystick = $('#joystick');
+let joystickPointer = null;
+let worldApi;
+let worldPromise;
+let nearby = null;
+let toastTimer;
+let inTransit = false;
+let building = true;
+
+$('#profile-summary').innerHTML = profileSummary;
+$('#profile-portrait').innerHTML = portraitMarkup;
+
+$('#resume-content').innerHTML = Object.entries(sections).map(([id, section]) => `<section id="resume-${id}" class="resume-section"><h2>${section.heading}</h2>${section.body}</section>`).join('');
+$('.station-labels').innerHTML = stations.map(s => `<button data-station="${s.id}" aria-label="前往${s.title}，${stationTimeline(s).join('，')}">${s.title}</button>`).join('');
+$('#destination').innerHTML += galaxies.map(g => `<optgroup label="${g.title}">${stations.filter(s => s.galaxy === g.id).map(s => `<option value="${s.id}">${s.title}</option>`).join('')}</optgroup>`).join('');
+$('#map-stations').innerHTML = galaxies.map(g => `<button class="atlas-galaxy" data-station="${g.destination}" style="left:${(g.x / mapSize.width + .5) * 100}%;top:${((g.z - g.radius - 13) / mapSize.depth + .5) * 100}%;--sector-color:${g.color}">${g.title}<small>${g.english}</small></button>`).join('') + stations.map((s,i) => `<button class="map-station ${s.kind}" data-station="${s.id}" style="left:${(s.x / mapSize.width + .5) * 100}%;top:${(s.z / mapSize.depth + .5) * 100}%;--sector-color:${galaxies.find(g=>g.id===s.galaxy).color}" aria-label="前往${s.title}" title="${s.title}"><span>${String(i+1).padStart(2,'0')}</span></button>`).join('') + portals.map(p=>`<button class="map-portal" data-station="${p.destination}" style="left:${(p.x / mapSize.width + .5) * 100}%;top:${(p.z / mapSize.depth + .5) * 100}%" aria-label="传送至${p.title}" title="传送至${p.title}"></button>`).join('');
+$('.map-panel').open = matchMedia('(min-width: 768px)').matches;
+$('#visited-count').textContent = `0 / ${stations.length}`;
+$('.warp-stars').innerHTML=Array.from({length:48},(_,i)=>`<i style="--angle:${i*137.508}deg;--delay:${(i%7)*-.13}s;--reach:${20+i%5*10}vw"></i>`).join('');
+$('#build-star-chart').innerHTML = galaxies.map((g, i) => `<span class="build-sector" style="left:${(g.x / mapSize.width + .5) * 100}%;top:${(g.z / mapSize.depth + .5) * 100}%" data-reveal="${28 + i * 4}"><i></i><b>${g.title}</b><small>${g.english}</small></span>`).join('') + stations.map((s, i) => `<i class="build-station" style="left:${(s.x / mapSize.width + .5) * 100}%;top:${(s.z / mapSize.depth + .5) * 100}%" data-reveal="${42 + Math.round((i + 1) / stations.length * 32)}"></i>`).join('');
+
+function setBuilding(value) {
+  building = value;
+  document.body.classList.toggle('is-building', value);
+  $('#destination').disabled = value;
+  document.querySelectorAll('.station-labels,.map-panel,.flight-toolbar,.touch-controls').forEach(node => { node.inert = value; });
+  if (value) clearInput();
+}
+let buildPercent = -1;
+function updateBuild(percent, message) {
+  if (percent !== buildPercent) {
+    buildPercent = percent;
+    $('#build-percent').innerHTML = `${percent}<small>%</small>`;
+    $('#build-progress').value = percent;
+    document.querySelectorAll('[data-reveal]').forEach(node => node.classList.toggle('charted', percent >= Number(node.dataset.reveal)));
+    let current = true;
+    document.querySelectorAll('[data-phase]').forEach(node => {
+      const done = percent >= Number(node.dataset.phase);
+      node.classList.toggle('complete', done); node.classList.toggle('current', !done && current);
+      node.querySelector('span').textContent = done ? '完成' : current ? '进行中' : '等待';
+      if (!done) current = false;
+    });
+  }
+  if ($('#build-status').textContent !== message) $('#build-status').textContent = message;
+}
+setBuilding(true);
+
+function drawMap() {
+  const canvas = $('.minimap canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle='#050a15';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.save();ctx.scale(canvas.width / mapSize.width, canvas.height / mapSize.depth);ctx.translate(mapSize.width / 2, mapSize.depth / 2);
+  let seed=79;
+  for(let i=0;i<460;i++){
+    seed=(seed*16807)%2147483647;const x=(seed/2147483647-.5)*mapSize.width;
+    seed=(seed*16807)%2147483647;const z=(seed/2147483647-.5)*mapSize.depth;
+    ctx.fillStyle=i%9?'#7184a850':'#dcecffaa';ctx.fillRect(x,z,i%9?.5:1.2,i%9?.5:1.2);
+  }
+  ctx.strokeStyle='#607fa31a';ctx.lineWidth=.6;
+  for(let x=-350;x<=350;x+=50){ctx.beginPath();ctx.moveTo(x,-325);ctx.lineTo(x,325);ctx.stroke();}
+  for(let z=-300;z<=300;z+=50){ctx.beginPath();ctx.moveTo(-380,z);ctx.lineTo(380,z);ctx.stroke();}
+  galaxies.forEach(g=>{
+    const glow=ctx.createRadialGradient(g.x,g.z,0,g.x,g.z,g.radius*1.2);glow.addColorStop(0,g.color+'28');glow.addColorStop(.45,g.color+'12');glow.addColorStop(1,g.color+'00');
+    ctx.fillStyle=glow;ctx.fillRect(g.x-g.radius*1.2,g.z-g.radius*1.2,g.radius*2.4,g.radius*2.4);
+    ctx.strokeStyle=g.color+'55';ctx.setLineDash([2,5]);ctx.beginPath();ctx.ellipse(g.x,g.z,g.radius,g.radius*.82,-.25,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=g.color+'22';ctx.beginPath();ctx.arc(g.x,g.z,g.radius*.5,0,Math.PI*2);ctx.stroke();
+    for(let i=0;i<24;i++){const a=i*Math.PI/12,r=g.radius+5;ctx.beginPath();ctx.moveTo(g.x+Math.cos(a)*r,g.z+Math.sin(a)*r*.82);ctx.lineTo(g.x+Math.cos(a)*(r+3),g.z+Math.sin(a)*(r+3)*.82);ctx.stroke();}
+  });
+  ctx.strokeStyle='#7ca0b943';ctx.setLineDash([3,7]);
+  portals.forEach(p=>{const target=stations.find(s=>s.id===p.destination);ctx.beginPath();ctx.moveTo(p.x,p.z);ctx.quadraticCurveTo((p.x+target.x)/2+35,(p.z+target.z)/2-35,target.x,target.z);ctx.stroke();});ctx.setLineDash([]);
+  stations.forEach(s=>{ctx.strokeStyle=galaxies.find(g=>g.id===s.galaxy).color+'88';ctx.fillStyle=visited.has(s.id)?'#9be4c831':'#18263c80';ctx.beginPath();ctx.arc(s.x,s.z,s.radius,0,Math.PI*2);ctx.fill();ctx.stroke();});
+  ctx.restore();
+}
+drawMap();
+$('#expand-map').addEventListener('click',()=>{
+  const expanded=$('.map-panel').classList.toggle('expanded');$('#expand-map').setAttribute('aria-pressed',String(expanded));$('#expand-map').textContent=expanded?'收起星图':'展开星图';
+});
+$('#map-stations').addEventListener('pointerover',event=>{
+  const station=stations.find(s=>s.id===event.target.closest('[data-station]')?.dataset.station);
+  if(station){$('#map-selection').textContent=station.title;$('#map-date').textContent=station.project?.date||station.job?.date||galaxies.find(g=>g.id===station.galaxy).title;}
+});
+$('#map-stations').addEventListener('focusin',event=>event.target.dispatchEvent(new PointerEvent('pointerover',{bubbles:true})));
+
+function showToast(message) {
+  $('#toast').textContent = message;
+  $('#toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 2500);
+}
+function clearInput() {
+  Object.keys(input).forEach(key => { input[key] = false; });
+  joystickPointer = null;
+  joystick.classList.remove('active');
+  joystick.style.setProperty('--stick-x', '0px');
+  joystick.style.setProperty('--stick-y', '0px');
+}
+function syncActivity() {
+  const active = !$('#explore').hidden && !document.hidden;
+  worldApi?.setActive(active);
+  if (!active) clearInput();
+}
+function setNearby(station) {
+  if (nearby?.id === station?.id) return;
+  nearby = station;
+  billboard.hidden = !station;
+  document.body.classList.toggle('at-station', Boolean(station));
+  document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('nearby', button.dataset.station === station?.id));
+  $('#location-status').textContent = station ? `已抵达：${station.title}` : '';
+  if (!station) return;
+  visited.add(station.id);
+  drawMap();
+  $('#visited-count').textContent = `${visited.size} / ${stations.length}`;
+  $('#billboard-category').textContent = galaxies.find(g => g.id === station.galaxy).title;
+  $('#billboard-title').textContent = station.title;
+  $('#billboard-content').innerHTML = billboardMarkup(station);
+  $('.billboard-face').scrollTop = 0;
+  billboard.dataset.station = station.id;
+  document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('visited', visited.has(button.dataset.station)));
+}
+function sceneError() {
+  clearInput();
+  setBuilding(false);
+  world.classList.add('error');
+  $('.world-loading').hidden = false;
+  $('.world-loading').classList.remove('is-revealing');
+  $('#build-status').textContent = '3D 暂不可用，可用「快速到达」阅读站点，或阅读文字简历。';
+  $('.build-fallback').hidden = false;
+}
+function syncOverview(value) {
+  $('#overview').setAttribute('aria-pressed', String(value));
+  $('#overview-label').textContent = value ? '飞船' : '全景';
+  $('#flight-mode').textContent = value ? '星系导航' : '飞行控制';
+  document.body.classList.toggle('is-overview', value);
+}
+async function loadWorld() {
+  if (worldPromise) return worldPromise;
+  updateBuild(4, '载入飞行系统…');
+  worldPromise = import('./world.js').then(async ({ createWorld }) => {
+    worldApi = await createWorld(world, input, setNearby, sceneError, travel, updateBuild, syncOverview);
+    $('.world-loading').classList.add('is-revealing');
+    const reveal = worldApi.reveal();
+    syncActivity();
+    await reveal;
+    if (!world.classList.contains('error')) $('.world-loading').hidden = true;
+    setBuilding(false);
+  }).catch(error => { console.warn('3D scene unavailable:', error.message); sceneError(); });
+  return worldPromise;
+}
+function route() {
+  const hash = location.hash;
+  const resume = hash.startsWith('#resume');
+  $('#explore').hidden = resume;
+  $('#resume').hidden = !resume;
+  if (!resume) loadWorld();
+  syncActivity();
+  if (hash.startsWith('#resume-')) requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView());
+  else window.scrollTo(0, 0);
+}
+async function travel(id) {
+  const returning=id==='home';
+  const station = stations.find(s => s.id === id);
+  if ((!station&&!returning) || inTransit || building) return;
+  inTransit = true;
+  try {
+    if ($('#explore').hidden) location.hash = '#explore';
+    clearInput();
+    await loadWorld();
+    syncOverview(false);
+    $('.map-panel').classList.remove('expanded');
+    $('#expand-map').setAttribute('aria-pressed','false');$('#expand-map').textContent='展开星图';
+    if (matchMedia('(max-width: 767px)').matches) $('.map-panel').open = false;
+    $('#warp-destination').textContent=returning?'返回起点':station.title;
+    document.body.style.setProperty('--warp-duration',returning?'3.2s':'2.4s');
+    document.body.classList.toggle('is-returning',returning);
+    document.body.classList.add('is-warping');
+    if (worldApi && !world.classList.contains('error')) {
+      if(returning)await worldApi.reset();
+      else await worldApi.travel(station);
+    } else setNearby(returning?null:station);
+    world.focus({ preventScroll: true });
+    if(returning)showToast('已返回出发地');
+  } finally {
+    document.body.classList.remove('is-warping','is-returning');
+    $('#destination').value = '';
+    inTransit = false;
+    clearInput();
+  }
+}
+$('#destination').addEventListener('change', e => travel(e.target.value));
+document.querySelectorAll('[data-station]').forEach(button => button.addEventListener('click', () => travel(button.dataset.station)));
+world.addEventListener('pointerdown', e => {
+  if (e.target === world || e.target.tagName === 'CANVAS') world.focus({ preventScroll: true });
+});
+document.addEventListener('click', e => {
+  const privacy = e.target.closest('[data-private-toggle]');
+  if (privacy) {
+    const field = privacy.closest('[data-private-field]');
+    const reveal = privacy.getAttribute('aria-pressed') !== 'true';
+    privacy.setAttribute('aria-pressed', String(reveal));
+    privacy.setAttribute('aria-label', `${reveal ? '隐藏' : '显示'}${field.dataset.privateLabel}`);
+    field.querySelector('[data-private-value]').textContent = reveal ? profile[field.dataset.privateField] : field.dataset.privateMask;
+    return;
+  }
+
+});
+$('#reset-car').addEventListener('click', () => travel('home'));
+async function toggleOverview() {
+  if (inTransit || building) return;
+  await loadWorld();
+  if (!worldApi || world.classList.contains('error')) return;
+  const overview = $('#overview').getAttribute('aria-pressed') !== 'true';
+  clearInput();
+  worldApi?.setOverview(overview);
+  syncOverview(overview);
+  world.focus({ preventScroll: true });
+}
+$('#overview').addEventListener('click', toggleOverview);
+document.querySelectorAll('[data-zoom]').forEach(button => button.addEventListener('click', async () => {
+  if (inTransit || building) return;
+  await loadWorld();
+  worldApi?.zoomBy(Number(button.dataset.zoom));
+  world.focus({ preventScroll: true });
+}));
+const keys = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', Space: 'brake', ShiftLeft: 'boost', ShiftRight: 'boost' };
+window.addEventListener('keydown', e => {
+  if (building || inTransit || e.metaKey || e.ctrlKey || e.altKey || $('#explore').hidden) return;
+  if (e.target !== joystick && e.target.closest('button,a,input,textarea,select,summary,.billboard-face,[contenteditable="true"]')) return;
+  if (keys[e.code]) { e.preventDefault(); input[keys[e.code]] = true; }
+  if (e.code === 'KeyR'&&!e.repeat) { e.preventDefault(); travel('home'); }
+  if (e.code === 'KeyM'&&!e.repeat) { e.preventDefault(); toggleOverview(); }
+});
+window.addEventListener('keyup', e => { if (keys[e.code]) input[keys[e.code]] = false; });
+window.addEventListener('blur', clearInput);
+document.addEventListener('visibilitychange', syncActivity);
+function moveJoystick(e) {
+  if (e.pointerId !== joystickPointer) return;
+  const rect = joystick.getBoundingClientRect();
+  const radius = rect.width / 2 - 23;
+  let x = e.clientX - rect.left - rect.width / 2, y = e.clientY - rect.top - rect.height / 2;
+  const scale = Math.min(1, radius / Math.max(1, Math.hypot(x, y)));
+  x *= scale; y *= scale;
+  joystick.style.setProperty('--stick-x', `${x}px`);
+  joystick.style.setProperty('--stick-y', `${y}px`);
+  input.left = x < -radius * .18 ? -x / radius : 0;
+  input.right = x > radius * .18 ? x / radius : 0;
+  input.up = y < -radius * .18 ? -y / radius : 0;
+  input.down = y > radius * .18 ? y / radius : 0;
+}
+joystick.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || joystickPointer !== null || inTransit || building || $('#explore').hidden || world.classList.contains('error')) return;
+  e.preventDefault();
+  joystickPointer = e.pointerId;
+  joystick.setPointerCapture(e.pointerId);
+  joystick.classList.add('active');
+  moveJoystick(e);
+});
+joystick.addEventListener('pointermove', moveJoystick);
+for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) joystick.addEventListener(event, e => {
+  if (e.pointerId === joystickPointer) clearInput();
+});
+window.addEventListener('hashchange', route);
+reducedMotion.addEventListener('change', () => worldApi?.setReducedMotion(reducedMotion.matches));
+if (import.meta.hot) import.meta.hot.dispose(() => worldApi?.dispose());
+route();
