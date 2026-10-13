@@ -59,11 +59,9 @@ kbd { display: inline-grid; place-items: center; min-width: 18px; padding: 0 3px
 @keyframes overheat-warning { to { opacity: .5; } }
 .weapon-control[data-state="cooldown"] { --weapon-color: #efbd8c; }
 
-.sector-hud { position: absolute; top: 113px; left: 38px; z-index: 2; display: grid; grid-template-columns: 28px auto; gap: 6px 12px; align-items: center; color: var(--hud-ink); pointer-events: none; text-shadow: 0 2px 8px #020912; }
-.sector-hud > span:not(.sector-signal) { font-size: 9px; color: var(--hud-muted); letter-spacing: 2px; }
-.sector-hud strong { grid-column: 2; font-size: 18px; line-height: 1.4; letter-spacing: 3px; font-weight: 500; }
-.sector-signal { grid-row: 1 / 3; width: 27px; height: 42px; border: 1px solid var(--hud-stroke); border-right-color: transparent; border-radius: 50%; position: relative; }
-.sector-signal::after { content: ''; position: absolute; inset: 7px 6px; border: 1px solid var(--hud-cyan); border-left-color: transparent; border-radius: 50%; }
+.sector-hud { position: absolute; top: 113px; left: 38px; z-index: 2; display: grid; gap: 6px; align-items: center; color: var(--hud-ink); pointer-events: none; text-shadow: 0 2px 8px #020912; }
+.sector-hud > span { font-size: 9px; color: var(--hud-muted); letter-spacing: 2px; }
+.sector-hud strong { font-size: 18px; line-height: 1.4; letter-spacing: 3px; font-weight: 500; }
 .flight-readout { position: absolute; bottom: 44px; left: 52%; transform: translateX(-50%); z-index: 2; min-width: 290px; color: var(--hud-ink); text-align: center; pointer-events: none; text-shadow: 0 2px 8px #020912; }
 .telemetry-row { display: flex; align-items: center; justify-content: center; gap: 24px; }
 #flight-mode { font-size: 11px; letter-spacing: 3px; }
@@ -168,11 +166,9 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
   .destination select { width: 110px; font-size: 11px; }
   .destination > small, .download-link > small { font-size: 6px; letter-spacing: 1px; }
   .download-link { min-height: 50px; font-size: 11px; }
-  .sector-hud { top: 97px; left: 18px; grid-template-columns: 21px auto; gap: 5px 8px; }
+  .sector-hud { top: 97px; left: 18px; gap: 5px; }
   .sector-hud strong { font-size: 14px; letter-spacing: 2px; }
-  .sector-hud > span:not(.sector-signal) { font-size: 8px; }
-  .sector-signal { width: 21px; height: 34px; }
-  .sector-signal::after { inset: 6px 4px; }
+  .sector-hud > span { font-size: 8px; }
   .flight-readout { top: 97px; right: 18px; left: auto; bottom: auto; width: 156px; transform: none; text-align: right; }
   .telemetry-row { justify-content: flex-end; gap: 10px; padding-bottom: 10px; }
   #flight-mode { font-size: 9px; letter-spacing: 1px; }
