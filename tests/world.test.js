@@ -127,7 +127,10 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     frames(1);assert.equal(flightStatus.idle,false,'resuming does not count hidden-tab time as idle flight');
     frames(400);assert.equal(flightStatus.idle,false,'no hint before eight seconds of stopped flight');
     frames(100);assert.equal(flightStatus.idle,true,'stopped flight surfaces an idle hint after eight seconds');
+    const previousHeading = flightStatus.heading;
     idle.left=true;frames(2);assert.equal(flightStatus.idle,false);idle.left=false;
+    assert.notEqual(flightStatus.heading,previousHeading,'HUD heading responds to stationary steering');
+    assert.equal(flightStatus.heading,scene.getObjectByName('x-wing').rotation.y,'HUD reports the actual ship heading');
     api.setActive(false);shoot();assert.ok(lasers.children.every(o=>!o.visible));api.setActive(true);
     let prevented=false;
     canvas.listeners.get('wheel')({deltaY:100,deltaMode:0,preventDefault(){prevented=true;}});

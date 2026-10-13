@@ -18,8 +18,8 @@
   <body class="is-building">
     <a class="skip-link" href="#resume">跳到文字简历</a>
     <header class="site-header">
-      <a class="brand hud-surface" href="#explore" aria-label="沈均来，回到探索世界"><span class="brand-name">沈均来<small>A DEVELOPER’S UNIVERSE</small></span></a>
-      <div class="header-actions"><label class="destination hud-surface"><small>JUMP DRIVE</small><span class="visually-hidden">快速到达站点</span><select id="destination" disabled><option value="">快速到达…</option></select></label><a class="download-link hud-surface" href="#resume"><small>PROFILE ARCHIVE</small><span>文字履历</span></a></div>
+      <a class="brand" href="#explore" aria-label="沈均来，回到探索世界"><span class="brand-name">沈均来<small>A DEVELOPER’S UNIVERSE</small></span></a>
+      <div class="header-trace" aria-hidden="true"><i></i><span></span><i></i></div><div class="header-actions"><label class="destination"><small>JUMP DRIVE</small><span class="visually-hidden">快速到达站点</span><select id="destination" disabled><option value="">快速到达…</option></select></label><a class="download-link" href="#resume"><small>PROFILE ARCHIVE</small><span>文字履历</span></a></div>
     </header>
 
     <main>
@@ -39,20 +39,20 @@
         </div>
         <div class="cockpit-frame" aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>
         <p id="location-status" class="visually-hidden" role="status"></p>
-        <details class="map-panel hud-surface">
-          <summary><span>星图 <small>NAVIGATION</small></span><span id="visited-count">0 / 17</span></summary>
+        <details class="map-panel">
+          <summary><span class="radar-symbol" aria-hidden="true"></span><span>星图 <small>NAVIGATION</small></span><span id="visited-count">0 / 17</span><span class="map-disclosure" aria-hidden="true">＋</span></summary>
           <div class="map-tools"><span id="map-coordinates">X 0.0 / Z 0.0</span><button id="expand-map" aria-pressed="false">展开星图</button></div>
-          <div class="minimap"><canvas width="900" height="900" aria-hidden="true"></canvas><div id="map-stations"></div><span id="map-car" aria-hidden="true"></span></div>
+          <div class="radar-scope"><span class="dial-ticks" aria-hidden="true"></span><span class="radar-sweep" aria-hidden="true"></span><div class="minimap"><canvas width="900" height="900" aria-hidden="true"></canvas><div id="map-stations"></div><span id="map-car" aria-hidden="true"></span></div></div>
           <div class="map-readout"><span id="map-selection">履历星域</span><span id="map-date">4 个星系 · 17 个站点</span></div>
           <div class="map-legend"><span>主题房屋</span><span>项目岛屿</span><span>传送门</span><span>已访问</span><span>当前位置</span></div>
         </details>
         <div id="warp" aria-hidden="true"><div class="warp-stars"></div><div class="warp-core"></div><p><small>HYPERSPACE</small><span id="warp-destination"></span></p></div>
-        <div class="touch-controls" aria-label="触屏飞行控制"><button id="joystick" type="button" aria-label="飞行摇杆：拖动向前后推进和左右转向；也可使用 WASD 或方向键"><span class="joystick-ring" aria-hidden="true"></span><span class="joystick-thumb" aria-hidden="true"></span></button><span class="joystick-caption">拖动驾驶 · 松手停止推进</span></div>
-        <div class="weapon-control hud-surface"><button id="fire-laser" type="button" aria-keyshortcuts="J" aria-label="短按发射激光，长按蓄力，松开发射激光炮"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 5v9m0 12v9M5 20h9m12 0h9"/><circle cx="20" cy="20" r="9"/><circle cx="20" cy="20" r="2"/></svg><span id="weapon-label">激光就绪</span><small>短按开火 · 长按蓄力</small></button><progress id="weapon-progress" max="1" value="0" aria-label="激光蓄力与冷却进度"></progress><span id="weapon-announcement" class="visually-hidden" role="status"></span></div>
-        <aside id="flight-guide" class="flight-guide hud-surface" aria-label="飞行提示" aria-live="polite" aria-atomic="true" hidden><strong id="guide-title"></strong><p id="guide-copy"></p><button id="dismiss-guide" type="button" aria-label="暂时关闭提示">×</button></aside>
-        <div class="sector-hud hud-surface"><span>SECTOR / 当前星域</span><strong id="sector-name">基本资料</strong></div>
-        <div class="flight-toolbar hud-surface"><span class="hud-caption">FLIGHT SYSTEMS</span><button id="reset-car" title="R 归航至起点" aria-keyshortcuts="R"><kbd>R</kbd><span>归航</span></button><button id="overview" aria-pressed="false" aria-keyshortcuts="M" title="M 切换全景与飞船视角"><kbd>M</kbd><span id="overview-label">全景</span></button><div class="zoom-controls" role="group" aria-label="场景缩放"><button data-zoom="1.25" aria-label="缩小场景" title="缩小 · 滚轮或双指也可缩放"><b>−</b><span>缩小</span></button><button data-zoom="0.8" aria-label="放大场景" title="放大 · 全景中放大会聚焦飞船"><b>+</b><span>放大</span></button></div></div>
-        <div class="flight-readout hud-surface"><span id="flight-mode">飞行控制</span><div class="pilot-keys"><span><kbd>WASD</kbd> 飞行</span><span><kbd>Shift</kbd> 加速</span><span><kbd>Space</kbd> 刹车</span><span><kbd>左键 / J</kbd> 长按蓄力</span></div><p class="overview-hint">点击星系跃迁 · 放大或飞行返回座舱</p></div>
+        <div class="touch-controls" aria-label="触屏飞行控制"><button id="joystick" type="button" aria-label="飞行摇杆：拖动向前后推进和左右转向；也可使用 WASD 或方向键"><span class="dial-ticks" aria-hidden="true"></span><span class="joystick-ring" aria-hidden="true"></span><span class="joystick-thumb" aria-hidden="true"></span></button><span class="joystick-caption">拖动驾驶 · 松手停止推进</span></div>
+        <div class="weapon-control"><span class="dial-ticks" aria-hidden="true"></span><span class="weapon-ring" aria-hidden="true"></span><button id="fire-laser" type="button" aria-keyshortcuts="J" aria-label="短按发射激光，长按蓄力，松开发射激光炮"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 5v9m0 12v9M5 20h9m12 0h9"/><circle cx="20" cy="20" r="9"/><circle cx="20" cy="20" r="2"/></svg><span id="weapon-label">激光就绪</span><small id="weapon-hint">长按蓄力</small></button><progress class="visually-hidden" id="weapon-progress" max="1" value="0" aria-label="激光蓄力与冷却进度"></progress><span id="weapon-announcement" class="visually-hidden" role="status"></span></div>
+        <aside id="flight-guide" class="flight-guide" aria-label="飞行提示" aria-live="polite" aria-atomic="true" hidden><strong id="guide-title"></strong><p id="guide-copy"></p><button id="dismiss-guide" type="button" aria-label="暂时关闭提示">×</button></aside>
+        <div class="sector-hud"><span class="sector-signal" aria-hidden="true"></span><span>当前星域</span><strong id="sector-name">基本资料</strong></div>
+        <div class="flight-toolbar" role="group" aria-label="飞行菜单"><span class="dial-ticks" aria-hidden="true"></span><button id="reset-car" title="R 归航至起点" aria-keyshortcuts="R"><kbd>R</kbd><span>归航</span></button><button id="overview" aria-pressed="false" aria-keyshortcuts="M" title="M 切换全景与飞船视角"><kbd>M</kbd><span id="overview-label">全景</span></button><div class="zoom-controls" role="group" aria-label="场景缩放"><button data-zoom="1.25" aria-label="缩小场景" title="缩小 · 滚轮或双指也可缩放"><b>−</b><span>缩小</span></button><button data-zoom="0.8" aria-label="放大场景" title="放大 · 全景中放大会聚焦飞船"><b>+</b><span>放大</span></button></div></div>
+        <div class="flight-readout"><div class="telemetry-row"><span id="flight-mode">飞行控制</span><span class="heading-readout"><small>航向</small><b id="heading-value">180°</b></span></div><div class="pilot-keys"><span><kbd>WASD</kbd> 飞行</span><span><kbd>Shift</kbd> 加速</span><span><kbd>Space</kbd> 刹车</span><span><kbd>左键 / J</kbd> 长按蓄力</span></div><p class="overview-hint">点击星系跃迁 · 放大或飞行返回座舱</p></div>
       </section>
 
       <article id="resume" class="resume-view" aria-label="沈均来个人简历" hidden>

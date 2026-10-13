@@ -71,7 +71,6 @@ function drawMap() {
   const canvas = $('.minimap canvas');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle='#050a15';ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.save();ctx.scale(canvas.width / mapSize.width, canvas.height / mapSize.depth);ctx.translate(mapSize.width / 2, mapSize.depth / 2);
   let seed=79;
   for(let i=0;i<460;i++){
@@ -170,18 +169,27 @@ function setControlMode(mode) {
   if (mode === 'touch') $('.map-panel').open = false;
   renderGuide();
 }
-function updateFlightStatus({ charge, cooldown, charging, idle, piloting }) {
+function updateFlightStatus({ charge, cooldown, charging, idle, piloting, heading }) {
   if (piloting) noteControl();
   flightIdle = idle;
   syncGuide();
   const state = cooldown > 0 ? 'cooldown' : charging ? (charge >= 1 ? 'charged' : 'charging') : 'ready';
-  const label = cooldown > 0 ? `冷却 ${cooldown.toFixed(1)}s` : charging ? (charge >= 1 ? '已蓄满 · 松开发射' : `蓄力 ${Math.round(charge * 100)}%`) : '激光就绪';
+  const label = cooldown > 0 ? `冷却 ${cooldown.toFixed(1)}s` : charging ? (charge >= 1 ? '已蓄满' : `蓄力 ${Math.round(charge * 100)}%`) : '激光就绪';
   if ($('#weapon-label').textContent !== label) $('#weapon-label').textContent = label;
-  $('#weapon-progress').value = cooldown > 0 ? cooldown / 3 : charge;
+  const level = cooldown > 0 ? cooldown / 3 : charge;
+  $('#weapon-progress').value = level;
+  const fill = `${Math.round(level * 100)}%`;
+  if ($('.weapon-control').style.getPropertyValue('--weapon-fill') !== fill) $('.weapon-control').style.setProperty('--weapon-fill', fill);
+  if (Number.isFinite(heading)) {
+    const degrees = ((Math.round(heading * 180 / Math.PI) % 360) + 360) % 360;
+    const direction = `${String(degrees).padStart(3, '0')}°`;
+    if ($('#heading-value').textContent !== direction) $('#heading-value').textContent = direction;
+  }
   fireButton.setAttribute('aria-disabled', String(cooldown > 0));
   if (state !== weaponState) {
     weaponState = state;
     $('.weapon-control').dataset.state = state;
+    $('#weapon-hint').textContent = charging ? '松开发射' : cooldown > 0 ? '等待冷却' : '长按蓄力';
     $('#weapon-announcement').textContent = state === 'cooldown' ? '激光炮冷却中' : state === 'charged' ? '蓄力完成，松开发射' : state === 'charging' ? '正在蓄力' : '激光就绪';
   }
 }

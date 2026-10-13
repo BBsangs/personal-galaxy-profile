@@ -476,7 +476,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   chargedBeam.traverse(object => { object.castShadow = object.receiveShadow = false; });
   let laserIndex = 0, fireSource = null, chargeTime = 0, cooldown = 0, beamLife = 0, beamDuration = 0, beamWidth = 1, idleTime = 0;
   const isPiloting = () => Object.values(input).some(Boolean) || Math.abs(ship.speed) > .15 || fireSource !== null || cooldown > 0;
-  function reportFlightStatus() { onFlightStatus({ charge: Math.min(1, chargeTime / 1.2), cooldown, charging: fireSource !== null, idle: idleTime >= 8, piloting: isPiloting() }); }
+  function reportFlightStatus() { onFlightStatus({ charge: Math.min(1, chargeTime / 1.2), cooldown, charging: fireSource !== null, idle: idleTime >= 8, piloting: isPiloting(), heading: ship.heading }); }
   function cancelFire() { fireSource = null; weaponPointer = null; chargeTime = 0; chargeGlow.visible = false; reportFlightStatus(); }
   function clearLasers() { cancelFire(); chargedBeam.visible = false; beamLife = 0; lasers.forEach(laser => { laser.life = 0; laser.object.visible = false; }); }
   function beginFire(source) {
