@@ -30,7 +30,17 @@ test('flight, braking, reverse steering, collision and expanded boundaries', () 
   assert.ok(Math.abs(ship.speed) < speed / 100);
   const reverse = { x: 0, z: 0, heading: 0, speed: -3 };
   stepVehicle(reverse, { ...idle, left: true }, 1 / 60);
-  assert.ok(reverse.heading < 0 && reverse.z < 0);
+  assert.ok(reverse.heading > 0 && reverse.z < 0, 'reverse thrust keeps the same yaw direction');
+  const stationary = { x: 0, z: 0, heading: 0, speed: 0 };
+  for (let i = 0; i < 120; i++) stepVehicle(stationary, { ...idle, left: true }, 1 / 60);
+  assert.ok(stationary.heading > 4.5, 'holding A keeps turning at zero speed');
+  assert.equal(stationary.x, 0); assert.equal(stationary.z, 0);
+  const heading = stationary.heading;
+  stepVehicle(stationary, idle, 1 / 60);
+  assert.equal(stationary.heading, heading, 'releasing steering stops rotation');
+  const analog = { x: 0, z: 0, heading: 0, speed: 0 };
+  stepVehicle(analog, { ...idle, right: .5 }, 1 / 60);
+  assert.ok(Math.abs(analog.heading + .02) < 1e-9, 'joystick steering remains proportional');
   const collision = { x: 0, z: -1.71, heading: 0, speed: 5 };
   stepVehicle(collision, { ...idle, up: true }, 1 / 60, [{ x: 0, z: 0, radius: 1 }]);
   assert.equal(collision.z, -1.71);

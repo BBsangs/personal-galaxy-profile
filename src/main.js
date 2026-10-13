@@ -7,7 +7,20 @@ const visited = new Set();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const input = { up: false, down: false, left: false, right: false, brake: false, boost: false };
 const joystick = $('#joystick');
+const fireButton = $('#fire-laser');
+const guide = $('#flight-guide');
+const compactScreen = matchMedia('(max-width: 767px)');
+const pressedKeys = new Set();
+const stickAxes = { up: 0, down: 0, left: 0, right: 0 };
 let joystickPointer = null;
+let firePointer = null;
+let controlMode = '';
+let viewportWidth = window.innerWidth;
+let firstGuide = true;
+try { firstGuide = localStorage.getItem('galaxy-guide-seen') !== '1'; } catch { /* Storage can be unavailable inside embedded browsers. */ }
+let guideUntil = 0, nextGuideAt = 0, guideIndex = -1;
+let flightIdle = false;
+let weaponState = '';
 let worldApi;
 let worldPromise;
 let nearby = null;
@@ -31,8 +44,9 @@ function setBuilding(value) {
   building = value;
   document.body.classList.toggle('is-building', value);
   $('#destination').disabled = value;
-  document.querySelectorAll('.station-labels,.map-panel,.flight-toolbar,.touch-controls').forEach(node => { node.inert = value; });
+  document.querySelectorAll('.station-labels,.map-panel,.flight-toolbar,.touch-controls,.weapon-control').forEach(node => { node.inert = value; });
   if (value) clearInput();
+  syncGuide();
 }
 let buildPercent = -1;
 function updateBuild(percent, message) {
@@ -96,21 +110,92 @@ function showToast(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 2500);
 }
-function clearInput() {
-  Object.keys(input).forEach(key => { input[key] = false; });
+function syncInput() {
+  Object.keys(input).forEach(key => { input[key] = stickAxes[key] || false; });
+  for (const code of pressedKeys) input[keys[code]] = true;
+}
+function resetJoystick() {
   joystickPointer = null;
+  Object.keys(stickAxes).forEach(key => { stickAxes[key] = 0; });
   joystick.classList.remove('active');
   joystick.style.setProperty('--stick-x', '0px');
   joystick.style.setProperty('--stick-y', '0px');
+  syncInput();
 }
+function clearInput() {
+  pressedKeys.clear();
+  resetJoystick();
+  firePointer = null;
+  worldApi?.cancelFire();
+}
+function renderGuide() {
+  const touch = controlMode === 'touch';
+  const tips = [
+    ['试着驾驶飞船', touch ? '拖动右下摇杆飞行，横向拖动可原地转向。' : '<kbd>W / S</kbd> 前进、后退 · <kbd>A / D</kbd> 原地转向<br><kbd>Shift</kbd> 加速 · <kbd>空格</kbd> 刹车'],
+    ['来一发蓄力激光', touch ? '按住左下开火键蓄力，松开发射粗激光炮；冷却 3 秒后可再次开火。' : '按住<kbd>鼠标左键 / J</kbd>蓄力，松开发射粗激光炮；冷却 3 秒后可再次开火。'],
+    ['去下一座岛屿看看', '靠近岛屿会自动展开履历，也可用「快速到达」直接跃迁。'],
+  ];
+  if (guideIndex < 0) return;
+  $('#guide-title').textContent = tips[guideIndex][0];
+  $('#guide-copy').innerHTML = tips[guideIndex][1];
+}
+function syncGuide() {
+  if (building || inTransit || nearby || $('#explore').hidden || document.hidden || document.body.classList.contains('is-overview') || world.classList.contains('error')) {
+    guideUntil = 0; guide.hidden = true; return;
+  }
+  const now = performance.now();
+  if (guideUntil && now >= guideUntil) guideUntil = 0;
+  if (!guideUntil && now >= nextGuideAt && (firstGuide || flightIdle)) {
+    guideIndex = (guideIndex + 1) % 3;
+    renderGuide();
+    guideUntil = now + 6000;
+    nextGuideAt = now + 30000;
+    if (firstGuide) {
+      firstGuide = false;
+      try { localStorage.setItem('galaxy-guide-seen', '1'); } catch { /* The current visit still works without persistence. */ }
+    }
+  }
+  guide.hidden = !guideUntil;
+}
+function noteControl() {
+  flightIdle = false;
+  guideUntil = 0;
+  guide.hidden = true;
+}
+function setControlMode(mode) {
+  if (controlMode === mode) return;
+  controlMode = mode;
+  clearInput();
+  document.body.dataset.controls = mode;
+  if (mode === 'touch') $('.map-panel').open = false;
+  renderGuide();
+}
+function updateFlightStatus({ charge, cooldown, charging, idle, piloting }) {
+  if (piloting) noteControl();
+  flightIdle = idle;
+  syncGuide();
+  const state = cooldown > 0 ? 'cooldown' : charging ? (charge >= 1 ? 'charged' : 'charging') : 'ready';
+  const label = cooldown > 0 ? `冷却 ${cooldown.toFixed(1)}s` : charging ? (charge >= 1 ? '已蓄满 · 松开发射' : `蓄力 ${Math.round(charge * 100)}%`) : '激光就绪';
+  if ($('#weapon-label').textContent !== label) $('#weapon-label').textContent = label;
+  $('#weapon-progress').value = cooldown > 0 ? cooldown / 3 : charge;
+  fireButton.setAttribute('aria-disabled', String(cooldown > 0));
+  if (state !== weaponState) {
+    weaponState = state;
+    $('.weapon-control').dataset.state = state;
+    $('#weapon-announcement').textContent = state === 'cooldown' ? '激光炮冷却中' : state === 'charged' ? '蓄力完成，松开发射' : state === 'charging' ? '正在蓄力' : '激光就绪';
+  }
+}
+$('#dismiss-guide').addEventListener('click', () => { guideUntil = 0; nextGuideAt = performance.now() + 30000; syncGuide(); world.focus({ preventScroll: true }); });
 function syncActivity() {
   const active = !$('#explore').hidden && !document.hidden;
   worldApi?.setActive(active);
   if (!active) clearInput();
+  syncGuide();
 }
 function setNearby(station) {
   if (nearby?.id === station?.id) return;
   nearby = station;
+  syncGuide();
   billboard.hidden = !station;
   document.body.classList.toggle('at-station', Boolean(station));
   document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('nearby', button.dataset.station === station?.id));
@@ -130,6 +215,7 @@ function sceneError() {
   clearInput();
   setBuilding(false);
   world.classList.add('error');
+  syncGuide();
   $('.world-loading').hidden = false;
   $('.world-loading').classList.remove('is-revealing');
   $('#build-status').textContent = '3D 暂不可用，可用「快速到达」阅读站点，或阅读文字简历。';
@@ -140,12 +226,13 @@ function syncOverview(value) {
   $('#overview-label').textContent = value ? '飞船' : '全景';
   $('#flight-mode').textContent = value ? '星系导航' : '飞行控制';
   document.body.classList.toggle('is-overview', value);
+  syncGuide();
 }
 async function loadWorld() {
   if (worldPromise) return worldPromise;
   updateBuild(4, '载入飞行系统…');
   worldPromise = import('./world.js').then(async ({ createWorld }) => {
-    worldApi = await createWorld(world, input, setNearby, sceneError, travel, updateBuild, syncOverview);
+    worldApi = await createWorld(world, input, setNearby, sceneError, travel, updateBuild, syncOverview, updateFlightStatus);
     $('.world-loading').classList.add('is-revealing');
     const reveal = worldApi.reveal();
     syncActivity();
@@ -232,13 +319,20 @@ document.querySelectorAll('[data-zoom]').forEach(button => button.addEventListen
 }));
 const keys = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', Space: 'brake', ShiftLeft: 'boost', ShiftRight: 'boost' };
 window.addEventListener('keydown', e => {
-  if (building || inTransit || e.metaKey || e.ctrlKey || e.altKey || $('#explore').hidden) return;
-  if (e.target !== joystick && e.target.closest('button,a,input,textarea,select,summary,.billboard-face,[contenteditable="true"]')) return;
-  if (keys[e.code]) { e.preventDefault(); input[keys[e.code]] = true; }
+  if (building || inTransit || e.metaKey || e.ctrlKey || e.altKey || $('#explore').hidden || world.classList.contains('error')) return;
+  if (e.target !== joystick && e.target !== fireButton && e.target.closest('button,a,input,textarea,select,summary,.billboard-face,[contenteditable="true"]')) return;
+  if (keys[e.code] || e.code === 'KeyJ' || e.code === 'KeyR' || e.code === 'KeyM') { setControlMode('keyboard'); noteControl(); }
+  if (keys[e.code]) { e.preventDefault(); pressedKeys.add(e.code); syncInput(); }
+  if (e.code === 'KeyJ') { e.preventDefault(); if (!e.repeat) worldApi?.beginFire('keyboard'); }
+  if (e.target === fireButton && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); if (!e.repeat) worldApi?.beginFire('button-key'); pressedKeys.delete(e.code); syncInput(); }
   if (e.code === 'KeyR'&&!e.repeat) { e.preventDefault(); travel('home'); }
   if (e.code === 'KeyM'&&!e.repeat) { e.preventDefault(); toggleOverview(); }
 });
-window.addEventListener('keyup', e => { if (keys[e.code]) input[keys[e.code]] = false; });
+window.addEventListener('keyup', e => {
+  if (keys[e.code]) { pressedKeys.delete(e.code); syncInput(); }
+  if (e.code === 'KeyJ') worldApi?.endFire('keyboard');
+  if (e.code === 'Space' || e.code === 'Enter') worldApi?.endFire('button-key');
+});
 window.addEventListener('blur', clearInput);
 document.addEventListener('visibilitychange', syncActivity);
 function moveJoystick(e) {
@@ -250,14 +344,16 @@ function moveJoystick(e) {
   x *= scale; y *= scale;
   joystick.style.setProperty('--stick-x', `${x}px`);
   joystick.style.setProperty('--stick-y', `${y}px`);
-  input.left = x < -radius * .18 ? -x / radius : 0;
-  input.right = x > radius * .18 ? x / radius : 0;
-  input.up = y < -radius * .18 ? -y / radius : 0;
-  input.down = y > radius * .18 ? y / radius : 0;
+  const axis = value => Math.max(0, (value / radius - .12) / .88);
+  stickAxes.left = axis(-x); stickAxes.right = axis(x);
+  stickAxes.up = axis(-y); stickAxes.down = axis(y);
+  syncInput();
+  noteControl();
 }
 joystick.addEventListener('pointerdown', e => {
   if (e.button !== 0 || joystickPointer !== null || inTransit || building || $('#explore').hidden || world.classList.contains('error')) return;
   e.preventDefault();
+  setControlMode('touch');
   joystickPointer = e.pointerId;
   joystick.setPointerCapture(e.pointerId);
   joystick.classList.add('active');
@@ -265,9 +361,39 @@ joystick.addEventListener('pointerdown', e => {
 });
 joystick.addEventListener('pointermove', moveJoystick);
 for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) joystick.addEventListener(event, e => {
-  if (e.pointerId === joystickPointer) clearInput();
+  if (e.pointerId === joystickPointer) resetJoystick();
 });
+fireButton.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || firePointer !== null || building || inTransit || $('#explore').hidden || world.classList.contains('error')) return;
+  e.preventDefault();
+  if (!worldApi?.beginFire('button')) return;
+  firePointer = e.pointerId;
+  fireButton.setPointerCapture(e.pointerId);
+  noteControl();
+});
+for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) fireButton.addEventListener(event, e => {
+  if (e.pointerId !== firePointer) return;
+  firePointer = null;
+  worldApi?.endFire('button', event !== 'pointerup');
+});
+fireButton.addEventListener('contextmenu', e => e.preventDefault());
+fireButton.addEventListener('click', e => {
+  // Assistive-technology activation has no pointer-down/up pair.
+  if (e.detail === 0 && !building && !inTransit && !$('#explore').hidden && worldApi?.beginFire('assistive')) worldApi.endFire('assistive');
+});
+window.addEventListener('pointerdown', e => {
+  if ($('#explore').hidden || e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+  if (e.pointerType === 'touch') setControlMode('touch');
+  else if (e.pointerType === 'mouse' && e.target !== joystick && !joystick.contains(e.target)) setControlMode('keyboard');
+}, { capture: true });
+window.addEventListener('resize', () => {
+  if (window.innerWidth === viewportWidth) return;
+  viewportWidth = window.innerWidth;
+  setControlMode(compactScreen.matches ? 'touch' : 'keyboard');
+});
+compactScreen.addEventListener('change', () => setControlMode(compactScreen.matches ? 'touch' : 'keyboard'));
 window.addEventListener('hashchange', route);
 reducedMotion.addEventListener('change', () => worldApi?.setReducedMotion(reducedMotion.matches));
 if (import.meta.hot) import.meta.hot.dispose(() => worldApi?.dispose());
+setControlMode(compactScreen.matches ? 'touch' : 'keyboard');
 route();

@@ -5,7 +5,7 @@ import { createGalaxy } from './galaxy.js';
 import { createPlanet } from './planets.js';
 import { createDateText } from './date-text.js';
 
-export async function createWorld(container, input, onNearby, onContextLost, onPortal, onBuild = () => {}, onOverviewChange = () => {}) {
+export async function createWorld(container, input, onNearby, onContextLost, onPortal, onBuild = () => {}, onOverviewChange = () => {}, onFlightStatus = () => {}) {
   const checkpoint = async (progress, message) => {
     onBuild(progress, message);
     await new Promise(resolve => setTimeout(resolve, 16));
@@ -60,7 +60,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   };
   const touches = new Map();
   const overviewRay = new THREE.Raycaster(), navigationPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), navigationPoint = new THREE.Vector3();
-  let pinchDistance = 0;
+  let pinchDistance = 0, weaponPointer = null;
   const touchDistance = () => {
     const [a, b] = [...touches.values()];
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
@@ -74,7 +74,10 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
           const galaxy = galaxies.find(g => Math.hypot(navigationPoint.x - g.x, navigationPoint.z - g.z) < g.radius);
           if (galaxy) onPortal(galaxy.destination);
         }
-      } else if (event.button === 0) fireLaser();
+      } else if (event.button === 0 && beginFire('mouse')) {
+        weaponPointer = event.pointerId;
+        renderer.domElement.setPointerCapture(event.pointerId);
+      }
       return;
     }
     touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -88,9 +91,12 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     if (pinchDistance > 0 && distance > 0) zoomBy(pinchDistance / distance);
     pinchDistance = distance;
   };
-  const endPinch = event => { touches.delete(event.pointerId); pinchDistance = touchDistance(); };
+  const endPinch = (event, cancel = false) => {
+    touches.delete(event.pointerId); pinchDistance = touchDistance();
+    if (event.pointerId === weaponPointer) { weaponPointer = null; endFire('mouse', cancel); }
+  };
   // Only the scene canvas captures zoom; resume panels retain their own scrolling.
-  const zoomEvents = { wheel: zoomWheel, pointerdown: startPinch, pointermove: movePinch, pointerup: endPinch, pointercancel: endPinch, lostpointercapture: endPinch };
+  const zoomEvents = { wheel: zoomWheel, pointerdown: startPinch, pointermove: movePinch, pointerup: endPinch, pointercancel: e => endPinch(e, true), lostpointercapture: e => endPinch(e, true) };
   Object.entries(zoomEvents).forEach(([name, listener]) => renderer.domElement.addEventListener(name, listener, { passive: false }));
 
   const sun = new THREE.DirectionalLight(0xbfd4ff, 3.2);
@@ -460,12 +466,46 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     return { object, life: 0, velocity: new THREE.Vector3() };
   });
   const laserDirection = new THREE.Vector3(), laserUp = new THREE.Vector3(0, 1, 0);
-  let laserIndex = 0, lastShot = -1;
-  function clearLasers() { lasers.forEach(laser => { laser.life = 0; laser.object.visible = false; }); }
-  function fireLaser() {
-    if (!active || assembly || transit || overview || contextLost || elapsed - lastShot < .12) return;
-    lastShot = elapsed; vehicle.updateMatrixWorld(true);
+  const chargeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: '#8cefff', transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  chargeGlow.name = 'laser-charge'; chargeGlow.position.set(0, 0, 4.5); chargeGlow.visible = false; vehicle.add(chargeGlow);
+  const chargedBeam = group(scene); chargedBeam.name = 'charged-laser'; chargedBeam.visible = false;
+  const beamGeometry = new THREE.CylinderGeometry(1, 1, 1, 12);
+  const beamCore = mesh(beamGeometry, new THREE.MeshBasicMaterial({ color: '#ecffff', transparent: true, opacity: 1, depthWrite: false, toneMapped: false }), chargedBeam);
+  const beamHalo = mesh(beamGeometry, new THREE.MeshBasicMaterial({ color: '#5bdcff', transparent: true, opacity: .32, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), chargedBeam);
+  beamHalo.scale.set(2.4, 1.01, 2.4);
+  chargedBeam.traverse(object => { object.castShadow = object.receiveShadow = false; });
+  let laserIndex = 0, fireSource = null, chargeTime = 0, cooldown = 0, beamLife = 0, beamDuration = 0, beamWidth = 1, idleTime = 0;
+  const isPiloting = () => Object.values(input).some(Boolean) || Math.abs(ship.speed) > .15 || fireSource !== null || cooldown > 0;
+  function reportFlightStatus() { onFlightStatus({ charge: Math.min(1, chargeTime / 1.2), cooldown, charging: fireSource !== null, idle: idleTime >= 8, piloting: isPiloting() }); }
+  function cancelFire() { fireSource = null; weaponPointer = null; chargeTime = 0; chargeGlow.visible = false; reportFlightStatus(); }
+  function clearLasers() { cancelFire(); chargedBeam.visible = false; beamLife = 0; lasers.forEach(laser => { laser.life = 0; laser.object.visible = false; }); }
+  function beginFire(source) {
+    if (!active || assembly || transit || overview || contextLost || cooldown > 0 || fireSource !== null) return false;
+    fireSource = source; chargeTime = 0; idleTime = 0; reportFlightStatus(); return true;
+  }
+  function endFire(source, cancel = false) {
+    if (fireSource !== source) return;
+    const power = Math.min(1, chargeTime / 1.2), charged = chargeTime >= .3;
+    cancelFire();
+    if (cancel || !active || assembly || transit || overview || contextLost) return;
+    idleTime = 0; cooldown = charged ? 3 : .14;
+    fireLaser(charged ? power : 0); reportFlightStatus();
+  }
+  function fireLaser(power = 0) {
+    updateVehicle(); vehicle.updateMatrixWorld(true);
     laserDirection.set(Math.sin(ship.heading), 0, Math.cos(ship.heading));
+    if (power > 0) {
+      const length = reduce ? 18 : 65 + power * 65;
+      beamWidth = .45 + power * .9;
+      chargeGlow.getWorldPosition(chargedBeam.position);
+      chargedBeam.position.addScaledVector(laserDirection, length / 2);
+      chargedBeam.quaternion.setFromUnitVectors(laserUp, laserDirection);
+      chargedBeam.scale.set(beamWidth, length, beamWidth);
+      beamCore.material.opacity = 1; beamHalo.material.opacity = .32;
+      beamLife = beamDuration = reduce ? .1 : .35 + power * .3;
+      chargedBeam.visible = true;
+      return;
+    }
     laserMuzzles.forEach(muzzle => {
       const laser = lasers[laserIndex++ % lasers.length];
       muzzle.getWorldPosition(laser.object.position);
@@ -589,6 +629,9 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     if(!active||contextLost)return;
     const dt=lastTime?Math.min((time-lastTime)/1000,.05):0;lastTime=time;elapsed+=dt;
     portalCooldown=Math.max(0,portalCooldown-dt);
+    cooldown = Math.max(0, cooldown - dt);
+    if (fireSource !== null) chargeTime = Math.min(1.2, chargeTime + dt);
+    idleTime = isPiloting() || assembly || transit || overview ? 0 : idleTime + dt;
     if (overview && Object.values(input).some(Boolean)) setOverview(false);
     if(assembly){
       assembly.progress = Math.min(1, assembly.progress + dt / (reduce ? .01 : 1.8));
@@ -624,6 +667,16 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     exhaust.color.setRGB(1-enginePower*.3,.82+enginePower*.18,.93+enginePower*.07);exhaust.emissive.setRGB(1-enginePower*.8,.24+enginePower*.56,.62+enginePower*.38);exhaust.emissiveIntensity=3+enginePower*4;
     trailPoints.material.size=3+enginePower*3;
     updateVehicle();
+    chargeGlow.visible = fireSource !== null;
+    chargeGlow.scale.setScalar((reduce ? .8 : 1.2) + chargeTime / 1.2 * 4);
+    if (beamLife > 0) {
+      beamLife = Math.max(0, beamLife - dt);
+      const fade = beamLife / beamDuration;
+      chargedBeam.visible = beamLife > 0;
+      chargedBeam.scale.x = chargedBeam.scale.z = beamWidth * (.45 + fade * .55);
+      beamCore.material.opacity = fade; beamHalo.material.opacity = fade * .32;
+    }
+    reportFlightStatus();
     if(!reduce){
       animated.forEach(({object,axis,speed})=>{object.rotation[axis]+=dt*speed;});
       floating.forEach(({object,baseY,phase})=>{object.position.y=baseY+Math.sin(elapsed*.35+phase)*.6;object.rotation.y+=dt*.035;});
@@ -691,13 +744,14 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
       updateCamera(0, true); render(); return promise;
     },
     zoomBy,
+    beginFire, endFire, cancelFire,
     reset(){return startTransit({...spawn},true);},
     travel(station){return startTransit({x:station.stop.x,z:station.stop.z,heading:Math.PI,speed:0});},
     setOverview,
     setActive(value){if(active===value)return;active=value;cancelAnimationFrame(frame);lastTime=0;if(!active){touches.clear();pinchDistance=0;clearLasers();}if(active&&!contextLost){resize();frame=requestAnimationFrame(tick);}},
     setReducedMotion(value){reduce=value;},
     dispose(){
-      active=false;cancelAnimationFrame(frame);observer.disconnect();renderer.domElement.removeEventListener('webglcontextlost',loseContext);container.removeEventListener('pointermove',movePointer);transit?.resolve();assembly?.resolve();
+      active=false;cancelAnimationFrame(frame);clearLasers();observer.disconnect();renderer.domElement.removeEventListener('webglcontextlost',loseContext);container.removeEventListener('pointermove',movePointer);transit?.resolve();assembly?.resolve();
       Object.entries(zoomEvents).forEach(([name, listener])=>renderer.domElement.removeEventListener(name,listener));touches.clear();
       [...exhibitLabels,...galaxyLabels,...portalLabels].forEach(({node})=>node.remove());
       const geos=new Set(),mats=new Set(),textures=new Set();

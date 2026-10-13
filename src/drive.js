@@ -12,7 +12,8 @@ export function stepVehicle(car, input, delta, obstacles = []) {
   car.speed = Math.max(-12, Math.min(input.boost ? 36 : 22, car.speed));
   if (Math.abs(car.speed) < 0.015) car.speed = 0;
   const turn = Number(input.left) - Number(input.right);
-  car.heading += turn * 2.4 * Math.min(Math.abs(car.speed) / 3, 1) * Math.sign(car.speed) * dt;
+  // A spacecraft can yaw at rest; reversing thrust must not reverse the controls.
+  car.heading += turn * (2.4 - Math.min(Math.abs(car.speed) / 36, 1) * .5) * dt;
   const oldX = car.x;
   const oldZ = car.z;
   car.x += Math.sin(car.heading) * car.speed * dt;

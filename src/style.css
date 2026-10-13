@@ -37,7 +37,7 @@ h1, h2, h3, p { margin-top: 0; }
 .destination option, .destination optgroup { background: #08131f; color: #eaf0f6; }
 .download-link { display: flex; flex-direction: column; gap: 6px; padding: 10px 18px; min-height: 51px; justify-content: center; font-size: 11px; white-space: nowrap; }
 .download-link:hover { color: #fff; }
-.explore-view { position: relative; height: 100dvh; min-height: 560px; overflow: hidden; }
+.explore-view { position: relative; height: 100dvh; min-height: min(560px, 100dvh); overflow: hidden; }
 .world { position: absolute; inset: 0; isolation: isolate; outline: none; touch-action: pan-y; }
 .world canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .world > canvas { touch-action: none; }
@@ -167,8 +167,38 @@ h1, h2, h3, p { margin-top: 0; }
 .joystick-thumb { width: 44px; height: 44px; border: 1px solid #c8f2fa99; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #9edbe84d, #0c2a3bdb); box-shadow: 0 0 18px #80d9ee19; transform: translate(var(--stick-x, 0px), var(--stick-y, 0px)); pointer-events: none; }
 #joystick.active .joystick-thumb { border-color: #e5fcff; box-shadow: 0 0 20px #80d9ee45; }
 .joystick-caption { color: #c2d9e2; font-size: 9px; text-shadow: 0 1px 6px #000; white-space: nowrap; }
-@media (any-pointer: coarse), (max-width: 767px) {
-  .touch-controls { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+body[data-controls="touch"] .touch-controls { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+body[data-controls="touch"] .pilot-keys, body[data-controls="touch"] .flight-toolbar kbd { display: none; }
+.weapon-control { position: absolute; left: 50%; bottom: 145px; transform: translateX(-50%); z-index: 2; width: 174px; padding: 0 12px 12px; --weapon-color: #a9e9f4; }
+#fire-laser { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-height: 106px; padding: 12px 0 8px; color: var(--weapon-color); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#fire-laser svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.3; pointer-events: none; }
+#weapon-label { font-size: 11px; font-variant-numeric: tabular-nums; }
+#fire-laser small { font-size: 9px; color: #c2d9e2; }
+#weapon-progress { display: block; appearance: none; width: 100%; height: 3px; border: 0; background: #a9e9f426; color: var(--weapon-color); }
+#weapon-progress::-webkit-progress-bar { background: #a9e9f426; }
+#weapon-progress::-webkit-progress-value { background: var(--weapon-color); }
+#weapon-progress::-moz-progress-bar { background: var(--weapon-color); }
+.weapon-control[data-state="charged"] { --weapon-color: #e0ffff; }
+.weapon-control[data-state="charged"] svg { filter: drop-shadow(0 0 6px #76eaff); }
+.weapon-control[data-state="cooldown"] { --weapon-color: #efb87e; }
+.flight-guide { position: absolute; left: 50%; top: 25%; transform: translateX(-50%); z-index: 3; width: min(360px, calc(100% - 32px)); padding: 16px 20px; color: #eaf5fa; pointer-events: none; animation: guide-arrival .25s ease-out; }
+.flight-guide strong { display: block; padding-right: 24px; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+.flight-guide p { font-size: 12px; line-height: 1.9; margin: 0; }
+#dismiss-guide { position: absolute; top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 10px; font-size: 20px; color: #bceffa; pointer-events: auto; }
+@keyframes guide-arrival { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.is-building .weapon-control, .is-warping .weapon-control, .is-overview .weapon-control { visibility: hidden; }
+.world.error ~ .weapon-control, .world.error ~ .touch-controls { visibility: hidden; }
+body[data-controls="touch"] .weapon-control { left: max(18px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); transform: none; width: 142px; }
+body[data-controls="touch"] .flight-toolbar { bottom: 174px; }
+body[data-controls="touch"] .map-panel { bottom: 316px; }
+body[data-controls="touch"] .sector-hud { bottom: auto; top: 95px; }
+@media (max-width: 1100px) {
+  .weapon-control { left: auto; right: 26px; top: 166px; bottom: auto; transform: none; width: 150px; }
+  body[data-controls="touch"] .weapon-control { top: auto; right: auto; }
+}
+@media (max-width: 767px) {
+  .weapon-control { right: 18px; top: auto; bottom: 24px; width: 142px; }
+  .flight-guide { top: 174px; padding: 16px 18px 12px; }
 }
 kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; color: #b9e4ed; font: 10px ui-monospace, monospace; }
 .hud-caption { position: absolute; top: 10px; left: 20px; right: 20px; display: flex; align-items: center; gap: 13px; font: 8px ui-monospace, monospace; letter-spacing: 2px; color: #b3cbd7; }
@@ -189,7 +219,7 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .is-overview .overview-hint { display: block; }
 .is-overview .pilot-keys { display: none; }
 .is-building .cockpit-frame, .is-building .flight-readout { visibility: hidden; }
-@media (max-width: 1100px) { .flight-readout { bottom: auto; top: 103px; } .pilot-keys { display: none; } }
+@media (max-width: 1100px) { .flight-readout { bottom: auto; top: 103px; } .pilot-keys { gap: 6px; flex-wrap: wrap; justify-content: center; } }
 @media (max-width: 767px) {
   .flight-readout { top: 94px; left: auto; right: 16px; max-width: calc(100vw - 190px); transform: none; padding: 12px 14px; text-align: right; }
   #flight-mode { font-size: 8px; letter-spacing: 2px; }
@@ -319,7 +349,7 @@ time { font-size: 10px; color: var(--muted); line-height: 2; font-variant-numeri
   .destination > small { padding-left: 8px; }
   .destination > small, .download-link > small { font-size: 6px; letter-spacing: 1px; }
   .download-link { font-size: 10px; padding: 8px 9px; }
-  .explore-view { min-height: 540px; }
+  .explore-view { min-height: min(540px, 100dvh); }
   .station-labels button { font-size: 11px; min-height: 40px; padding: 8px; max-width: 175px; }
   .billboard { width: min(330px, calc(100vw - 28px)); }
   .billboard-face { padding: 17px 19px; max-height: min(390px, 46dvh); }
@@ -381,6 +411,14 @@ time { font-size: 10px; color: var(--muted); line-height: 2; font-variant-numeri
   .brand-name { font-size: 13px; }
   .header-actions { gap: 4px; }
   .contact-options { grid-template-columns: 1fr; }
+}
+@media (min-width: 600px) and (max-height: 600px) {
+  body[data-controls="touch"] .flight-toolbar { bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; padding: 24px 6px 6px; }
+  body[data-controls="touch"] .map-panel { top: 92px; right: 16px; bottom: auto; left: auto; width: 190px; }
+  body[data-controls="touch"] .flight-readout { top: 92px; left: 50%; right: auto; transform: translateX(-50%); }
+  .flight-guide { top: 90px; width: min(360px, calc(100% - 32px)); padding: 12px 18px; }
+  .flight-guide strong { font-size: 14px; margin-bottom: 6px; }
+  .flight-guide p { font-size: 11px; line-height: 1.65; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
