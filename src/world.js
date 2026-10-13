@@ -413,6 +413,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   wingShape.moveTo(0,.55);wingShape.lineTo(3.75,-.1);wingShape.lineTo(3.85,-1.35);wingShape.lineTo(0,-1.35);wingShape.closePath();
   const wingGeometry = new THREE.ExtrudeGeometry(wingShape,{depth:.12,bevelEnabled:false});
   const flames=[];
+  const wingEmitters=[];
   const laserMuzzles=[];
   const engineHalos=[];
   const flameGeometry=new THREE.ConeGeometry(.23,1.7,12).translate(0,.85,0);
@@ -435,6 +436,9 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     const flame=mesh(flameGeometry,exhaust,foil,side*.72,0,-2.5);flame.name='engine-flame';flame.rotation.x=-Math.PI/2;flames.push(flame);
     const sheath=mesh(flameGeometry,flameGlow,flame);sheath.scale.set(1.8,1.1,1.8);
     const halo=new THREE.Sprite(haloMaterial);halo.position.set(side*.72,0,-2.5);foil.add(halo);engineHalos.push(halo);
+    if(level===1){
+      const emitter=group(foil,side*3.85,0,-1.45);emitter.userData.side=side;wingEmitters.push(emitter);
+    }
   }
   vehicle.traverse(object => { object.castShadow = false; });
   const returnBeacon=group(scene);returnBeacon.name='return-beacon';returnBeacon.visible=false;
@@ -673,7 +677,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     flames.forEach((flame,i)=>{flame.scale.set(1+enginePower*.8,flameLength*(reduce?1:1+Math.sin(elapsed*35+i)*.08*enginePower),1+enginePower*.8);});
     engineHalos.forEach(halo=>halo.scale.setScalar(1+enginePower*2.7));
     exhaust.color.setRGB(1-enginePower*.3,.82+enginePower*.18,.93+enginePower*.07);exhaust.emissive.setRGB(1-enginePower*.8,.24+enginePower*.56,.62+enginePower*.38);exhaust.emissiveIntensity=3+enginePower*4;
-    trailPoints.material.size=3+enginePower*3;
+    trailPoints.material.size=3+enginePower*4;
     updateVehicle();
     chargeGlow.visible = fireSource !== null;
     const heat = Math.max(0, (chargeTime - maxChargeTime) / (autoFireTime - maxChargeTime));
@@ -696,12 +700,13 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
         vehicle.updateMatrixWorld(true);
         const interval=enginePower>.3?.01:.03;
         while(trailTime>=interval){
-          for(const flame of flames){
-            flame.getWorldPosition(emitterPosition);
+          for(const emitter of wingEmitters){
+            emitter.getWorldPosition(emitterPosition);
             const count=enginePower>.3?3:1;
             for(let i=0;i<count;i++){
-              const exhaustSpeed=3+enginePower*7,spread=.4+enginePower*1.2;
-              emitParticle(emitterPosition,-Math.sin(ship.heading)*exhaustSpeed+(random()-.5)*spread,(random()-.5)*spread,-Math.cos(ship.heading)*exhaustSpeed+(random()-.5)*spread,.18+enginePower*.1);
+              const exhaustSpeed=3+enginePower*7,spread=.3+enginePower*3.6;
+              const outward=emitter.userData.side*(.15+random()*spread);
+              emitParticle(emitterPosition,-Math.sin(ship.heading)*exhaustSpeed+Math.cos(ship.heading)*outward,(random()-.5)*.35,-Math.cos(ship.heading)*exhaustSpeed-Math.sin(ship.heading)*outward,.18+enginePower*.1);
             }
           }
           trailTime-=interval;
