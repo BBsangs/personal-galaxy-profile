@@ -131,7 +131,7 @@ function renderGuide() {
   const touch = controlMode === 'touch';
   const tips = [
     ['试着驾驶飞船', touch ? '拖动右下摇杆飞行，横向拖动可原地转向。' : '<kbd>W / S</kbd> 前进、后退 · <kbd>A / D</kbd> 原地转向<br><kbd>Shift</kbd> 加速 · <kbd>空格</kbd> 刹车'],
-    ['来一发蓄力激光', (touch ? '按住左下开火键' : '按住<kbd>鼠标左键 / J</kbd>') + '蓄力，10 秒满功率；继续按住会变红，15 秒过热告警，20 秒自动发射。随时松手可发射，冷却 3 秒。'],
+    ['来一发蓄力激光', (touch ? '按住左下开火键' : '按住<kbd>鼠标左键 / J</kbd>') + '蓄力，5 秒满功率；继续按住会变红，8 秒过热告警，10 秒自动发射。随时松手可发射，冷却 3 秒。'],
     ['去下一座岛屿看看', '靠近岛屿会自动展开履历，也可用「快速到达」直接跃迁。'],
   ];
   if (guideIndex < 0) return;
@@ -169,11 +169,11 @@ function setControlMode(mode) {
   if (mode === 'touch') $('.map-panel').open = false;
   renderGuide();
 }
-function updateFlightStatus({ charge, chargeLimit = 10, overcharge = 0, autoFireIn = 20, cooldown, charging, idle, piloting, heading }) {
+function updateFlightStatus({ charge, chargeLimit = 5, overcharge = 0, autoFireIn = 10, cooldown, charging, idle, piloting, heading }) {
   if (piloting) noteControl();
   flightIdle = idle;
   syncGuide();
-  const state = cooldown > 0 ? 'cooldown' : !charging ? 'ready' : overcharge >= .5 ? 'warning' : overcharge > 0 ? 'overcharging' : charge >= 1 ? 'charged' : 'charging';
+  const state = cooldown > 0 ? 'cooldown' : !charging ? 'ready' : overcharge >= .6 ? 'warning' : overcharge > 0 ? 'overcharging' : charge >= 1 ? 'charged' : 'charging';
   const label = state === 'cooldown' ? `冷却 ${cooldown.toFixed(1)}s` : state === 'warning' ? '过热警告' : state === 'overcharging' ? '能量过载' : charging ? (charge >= 1 ? '已蓄满' : `蓄力 ${Math.round(charge * 100)}%`) : '激光就绪';
   if ($('#weapon-label').textContent !== label) $('#weapon-label').textContent = label;
   const hint = cooldown > 0 ? '等待冷却' : charging ? (charge >= 1 ? `自动 ${autoFireIn.toFixed(1)}s` : `${(charge * chargeLimit).toFixed(1)} / ${chargeLimit}s`) : `长按 · ${chargeLimit}秒满`;

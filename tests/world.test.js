@@ -108,9 +108,9 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     frames(30);assert.ok(lasers.children.every(o=>!o.visible),'bolts expire instead of leaving long streaks');
     const beam=scene.getObjectByName('charged-laser'),charge=scene.getObjectByName('laser-charge');
     const strengths=[];
-    for (const hold of [1000,5000,10000,15000]) {
+    for (const hold of [500,2500,5000,7500]) {
       press();frames(1,hold);
-      assert.ok(Math.abs(flightStatus.charge-Math.min(1,hold/10000))<1e-8,'charge follows held time even with a delayed frame');
+      assert.ok(Math.abs(flightStatus.charge-Math.min(1,hold/5000))<1e-8,'charge follows held time even with a delayed frame');
       release();
       const size=beam.scale.clone();let duration=0;
       while(beam.visible && duration<120){frames(1);duration++;}
@@ -120,9 +120,9 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
       assert.ok(strengths[i].size.x>strengths[i-1].size.x && strengths[i].size.y>strengths[i-1].size.y,'longer holds produce a wider, longer beam');
       assert.ok(strengths[i].duration>strengths[i-1].duration,'longer holds produce a longer discharge');
     }
-    assert.ok(strengths[3].size.distanceTo(strengths[2].size)<1e-8,'power stops increasing at ten seconds');
+    assert.ok(strengths[3].size.distanceTo(strengths[2].size)<1e-8,'power stops increasing at five seconds');
     assert.ok(Math.abs(strengths[3].duration-strengths[2].duration)<=1,'maximum discharge duration is stable within one animation frame');
-    press();frames(1,10001);
+    press();frames(1,5001);
     assert.ok(charge.visible && flightStatus.charging && flightStatus.charge===1);
     assert.ok(!beam.visible && lasers.children.every(o=>!o.visible),'holding charges without firing');
     assert.equal(api.beginFire('keyboard'),false,'a second source cannot steal a held trigger');
@@ -133,7 +133,7 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     frames(50);assert.ok(beam.visible && flightStatus.cooldown>2);
     frames(50);assert.ok(!beam.visible);
     frames(90);assert.equal(flightStatus.cooldown,0);
-    press();frames(1,16000);canvas.listeners.get('pointercancel')(mouse);release();frames(1,5000);
+    press();frames(1,8500);canvas.listeners.get('pointercancel')(mouse);release();frames(1,5000);
     assert.ok(!beam.visible && !charge.visible && flightStatus.cooldown===0,'pointer cancellation never discharges');
     press();frames(30);canvas.listeners.get('lostpointercapture')(mouse);release();assert.ok(!beam.visible);
     api.beginFire('keyboard');frames(80);api.endFire('button');assert.ok(flightStatus.charging,'release belongs to its initiating control');
@@ -141,22 +141,23 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     frames(190);
     for (const source of ['mouse','button','keyboard']) {
       if(source==='mouse')press();else api.beginFire(source);
-      frames(1,10000);
+      frames(1,5000);
       const coldColor=charge.material.color.clone();
       assert.ok(flightStatus.charging && !beam.visible);
-      frames(1,5001);
-      assert.ok(flightStatus.overcharge>=.5 && flightStatus.autoFireIn<5,'overheating warns after fifteen seconds');
-      assert.ok(charge.material.color.r>coldColor.r && charge.material.color.g<coldColor.g,'charge progressively turns red');
-      frames(1,4998);assert.ok(flightStatus.charging && !beam.visible,'holding does not fire before twenty seconds');
+      frames(1,2999);assert.ok(flightStatus.overcharge<.6,'no overheating warning before eight seconds');
       frames(1,2);
-      assert.ok(beam.visible && !flightStatus.charging && !charge.visible,'twenty seconds automatically discharges every input source');
+      assert.ok(flightStatus.overcharge>=.6 && flightStatus.autoFireIn<2,'overheating warns after eight seconds');
+      assert.ok(charge.material.color.r>coldColor.r && charge.material.color.g<coldColor.g,'charge progressively turns red');
+      frames(1,1998);assert.ok(flightStatus.charging && !beam.visible,'holding does not fire before ten seconds');
+      frames(1,2);
+      assert.ok(beam.visible && !flightStatus.charging && !charge.visible,'ten seconds automatically discharges every input source');
       assert.ok(flightStatus.cooldown>2.9);
       frames(190);const remainingLasers=lasers.children.filter(o=>o.visible).length;
       if(source==='mouse')release();else api.endFire(source);
       assert.ok(!beam.visible && flightStatus.cooldown===0,'releasing an auto-fired trigger never fires a second time');
       assert.equal(lasers.children.filter(o=>o.visible).length,remainingLasers);
     }
-    press();time+=5000;release();
+    press();time+=2500;release();
     assert.ok(beam.scale.distanceTo(strengths[1].size)<1e-8,'release between frames uses the actual held duration');
     frames(190);
     press();frames(50);api.setActive(false);release();assert.ok(!beam.visible && !charge.visible);api.setActive(true);

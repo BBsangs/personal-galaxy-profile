@@ -475,7 +475,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   const beamHalo = mesh(beamGeometry, new THREE.MeshBasicMaterial({ color: '#5bdcff', transparent: true, opacity: .32, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), chargedBeam);
   beamHalo.scale.set(2.4, 1.01, 2.4);
   chargedBeam.traverse(object => { object.castShadow = object.receiveShadow = false; });
-  const maxChargeTime = 10, autoFireTime = 20;
+  const maxChargeTime = 5, autoFireTime = 10;
   let laserIndex = 0, fireSource = null, chargeTime = 0, chargeStartedAt = 0, cooldown = 0, beamLife = 0, beamDuration = 0, beamWidth = 1, idleTime = 0;
   const heldSeconds = () => Math.min(autoFireTime, (performance.now() - chargeStartedAt) / 1000);
   const isPiloting = () => Object.values(input).some(Boolean) || Math.abs(ship.speed) > .15 || fireSource !== null || cooldown > 0;
@@ -679,7 +679,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     const heat = Math.max(0, (chargeTime - maxChargeTime) / (autoFireTime - maxChargeTime));
     chargeGlow.scale.setScalar((reduce ? .8 : 1.2) + Math.min(1, chargeTime / maxChargeTime) * 5);
     chargeGlow.material.color.copy(chargeCold).lerp(chargeHot, heat);
-    chargeGlow.material.opacity = heat >= .5 && !reduce ? .7 + Math.sin(elapsed * 10) * .2 : .8;
+    chargeGlow.material.opacity = heat >= .6 && !reduce ? .7 + Math.sin(elapsed * 10) * .2 : .8;
     if (beamLife > 0) {
       beamLife = Math.max(0, beamLife - dt);
       const fade = beamLife / beamDuration;
