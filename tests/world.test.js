@@ -92,6 +92,48 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     assert.equal(scene.getObjectByName('x-wing').position.x,spawn.x);
     assert.equal(scene.getObjectByName('x-wing').position.z,spawn.z);
     frames(90);
+    {
+      const ship=scene.getObjectByName('x-wing'),origin=ship.position.clone(),modes=[];
+      const background=scene.children.find(o=>o.material?.isRawShaderMaterial);
+      const nearby=stations.find(s=>s.id==='about');
+      const approach=api.travel(nearby,mode=>modes.push(mode));
+      assert.deepEqual(modes,['flight'],'nearby station selects flight rather than warp');
+      assert.equal(ship.position.x,origin.x);assert.equal(ship.position.z,origin.z);
+      frames(30);
+      assert.ok(ship.position.z<origin.z && ship.position.z>nearby.stop.z,'nearby flight moves continuously between source and destination');
+      assert.ok(ship.visible && ship.scale.equals(new THREE.Vector3(1,1,1)));
+      assert.equal(background.material.uniforms.uWarp.value,0);
+      api.setActive(false);assert.equal(nextFrame,null,'backgrounding pauses the nearby flight');
+      const paused=ship.position.clone();api.setActive(true);frames(1);assert.ok(ship.position.distanceTo(paused)<.01);
+      frames(180);await approach;
+      assert.equal(arrivals.at(-1),nearby.id,'arrival still opens the station');
+      assert.ok(Math.hypot(ship.position.x-nearby.stop.x,ship.position.z-nearby.stop.z)<.01);
+      await api.travel(nearby,mode=>modes.push(mode));frames(20);
+      assert.deepEqual(modes,['flight'],'clicking the docked station does not relaunch');
+      assert.equal(ship.position.z,nearby.stop.z,'docked ship does not drift');
+      const across=api.travel({stop:{x:nearby.x,z:nearby.z-20}},mode=>modes.push(mode));
+      let previous=ship.position.clone(),crossed=false;
+      for(let i=0;i<280;i++){
+        frames(1);
+        assert.ok(ship.visible && ship.position.distanceTo(previous)<1,'local approach has no disappearance or teleport');
+        if(Math.abs(ship.position.z-(nearby.z-1))<9.6){crossed=true;assert.ok(ship.position.y>15,'flight clears buildings instead of crossing through them');}
+        assert.equal(background.material.uniforms.uWarp.value,0);
+        previous.copy(ship.position);
+      }
+      await across;assert.ok(crossed);
+      const boundary={stop:{x:ship.position.x+100,z:ship.position.z}};
+      const boundaryTrip=api.travel(boundary,mode=>modes.push(mode));assert.equal(modes.at(-1),'flight');
+      frames(520);await boundaryTrip;
+      const far={stop:{x:ship.position.x+100.1,z:ship.position.z}};
+      const farTrip=api.travel(far,mode=>modes.push(mode));assert.equal(modes.at(-1),'warp','only distances beyond the cutoff warp');
+      frames(160);await farTrip;
+      api.setReducedMotion(true);
+      const quiet={stop:{x:ship.position.x+20,z:ship.position.z}};
+      const quietTrip=api.travel(quiet,mode=>modes.push(mode));frames(30);
+      assert.ok(ship.position.x<quiet.stop.x && ship.visible,'reduced motion keeps nearby flight continuous');
+      frames(160);await quietTrip;api.setReducedMotion(false);
+      const home=api.reset();frames(210);await home;frames(90);
+    }
     const canvas=root.children[0];
     const visibleHeight=()=>camera.top-camera.bottom;
     assert.ok(Math.abs(visibleHeight()-80)<.01);

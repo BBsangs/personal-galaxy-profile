@@ -191,7 +191,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     const cloud=new THREE.Sprite(new THREE.SpriteMaterial({map:nebulaTexture,color:galaxy.color,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending}));
     cloud.position.set(galaxy.x,-20,galaxy.z);cloud.scale.set(galaxy.radius*3.5,galaxy.radius*2.8,1);cloud.material.rotation=i*.7;scene.add(cloud);
     const node=document.createElement('button');node.className='galaxy-label';node.type='button';node.style.color=galaxy.color;node.innerHTML=`<small>${galaxy.english}</small>${galaxy.title}`;
-    node.setAttribute('aria-label', `跃迁至${galaxy.title}`);node.addEventListener('click',()=>onPortal(galaxy.destination));
+    node.setAttribute('aria-label', `前往${galaxy.title}`);node.addEventListener('click',()=>onPortal(galaxy.destination));
     container.querySelector('.station-labels').append(node);return {node,galaxy};
   });
   const floating = [];
@@ -536,6 +536,10 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     vehicle.rotation.set(0,ship.heading,0);vehicle.scale.set(1,1,1);vehicle.visible=true;
     returnBeacon.visible=false;jumpRing.visible=false;
     if (assembly) { vehicle.position.y += (1 - assembly.progress) * 9; vehicle.rotation.z = reduce ? 0 : Math.sin(assembly.progress * Math.PI) * -.18; }
+    if (transit?.local) {
+      vehicle.position.y += transit.lift * THREE.MathUtils.smoothstep(transit.progress, 0, .15) * (1 - THREE.MathUtils.smoothstep(transit.progress, .85, 1));
+      return;
+    }
     if(!transit||reduce)return;
     const t=transit.progress,heading=ship.heading;
     let advance=0,lift=0,stretch=1;
@@ -657,9 +661,19 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     }else if(transit){
       transit.time+=dt;
       const lead=transit.returning&&transit.duration>.25?.8:0;
-      const progress=Math.min(1,Math.max(transit.progress,reduce?transit.time/.25:(transit.time-lead)/(transit.duration-lead)));
-      transit.progress=progress;warp=reduce?0:Math.sin(Math.max(0,progress)*Math.PI);
-      if(progress>=.5&&!transit.moved){Object.assign(ship,transit.target);transit.moved=true;updateCamera(0,true);trailLife.fill(0);}
+      const progress=Math.min(1,Math.max(transit.progress,reduce&&!transit.local?transit.time/.25:(transit.time-lead)/(transit.duration-lead)));
+      transit.progress=progress;warp=reduce||transit.local?0:Math.sin(Math.max(0,progress)*Math.PI);
+      if (transit.local) {
+        const { source, target, heading, distance, duration } = transit;
+        const u = THREE.MathUtils.clamp((progress - .15) / .7, 0, 1);
+        const blend = u * u * (3 - 2 * u);
+        ship.x = THREE.MathUtils.lerp(source.x, target.x, blend);
+        ship.z = THREE.MathUtils.lerp(source.z, target.z, blend);
+        ship.speed = distance * 6 * u * (1 - u) / (duration * .7);
+        const turn = Math.atan2(Math.sin(heading - source.heading), Math.cos(heading - source.heading));
+        const dockTurn = Math.atan2(Math.sin(target.heading - heading), Math.cos(target.heading - heading));
+        ship.heading = source.heading + turn * THREE.MathUtils.smoothstep(progress, 0, .15) + dockTurn * THREE.MathUtils.smoothstep(progress, .85, 1);
+      } else if(progress>=.5&&!transit.moved){Object.assign(ship,transit.target);transit.moved=true;updateCamera(0,true);trailLife.fill(0);}
       if(progress===1){const resolve=transit.resolve;transit=null;warp=0;portalCooldown=3;resolve();}
     }else if(!overview){
       stepVehicle(ship,input,dt,obstacles);
@@ -671,7 +685,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     const turning=Number(input.left)-Number(input.right);
     hull.rotation.z=THREE.MathUtils.damp(hull.rotation.z,reduce?0:-turning*ship.speed*.011,6,dt);
     hull.rotation.x=THREE.MathUtils.damp(hull.rotation.x,reduce?0:Number(input.up)*.055,6,dt);
-    const jumpThrust=transit&&!reduce?Math.sin(THREE.MathUtils.clamp(transit.progress,0,1)*Math.PI):0;
+    const jumpThrust=transit&&!transit.local&&!reduce?Math.sin(THREE.MathUtils.clamp(transit.progress,0,1)*Math.PI):0;
     const enginePower=Math.max(boostGlow,jumpThrust);
     const flameLength=reduce?.8:.35+Math.abs(ship.speed)*.055+enginePower*3.4;
     flames.forEach((flame,i)=>{flame.scale.set(1+enginePower*.8,flameLength*(reduce?1:1+Math.sin(elapsed*35+i)*.08*enginePower),1+enginePower*.8);});
@@ -739,14 +753,23 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   const observer=new ResizeObserver(resize);
   const loseContext=e=>{e.preventDefault();contextLost=true;cancelAnimationFrame(frame);transit?.resolve();transit=null;assembly?.resolve();assembly=null;warp=0;boostGlow=0;clearLasers();updateVehicle();onContextLost();};
   renderer.domElement.addEventListener('webglcontextlost',loseContext);
-  function startTransit(target,returning=false) {
+  function startTransit(target,returning=false,onStart=()=>{}) {
     if(transit)return transit.promise;
     if(contextLost)return Promise.resolve();
+    const dx=target.x-ship.x,dz=target.z-ship.z,distance=Math.hypot(dx,dz);
+    const local=!returning&&distance<=100;
+    if(local&&distance<.5){ship.speed=0;setOverview(false);updateStation();render();return Promise.resolve();}
+    // Fly above building footprints on short routes instead of passing through them.
+    const lift=local&&obstacles.some(obstacle=>{
+      const t=THREE.MathUtils.clamp(((obstacle.x-ship.x)*dx+(obstacle.z-ship.z)*dz)/(distance*distance),0,1);
+      return Math.hypot(ship.x+dx*t-obstacle.x,ship.z+dz*t-obstacle.z)<obstacle.radius+5;
+    })?16:0;
     let resolve;
     const promise=new Promise(done=>{resolve=done;});
-    transit={target,returning,source:{...ship},time:0,progress:returning&&!reduce?-.8/2.4:0,duration:reduce?.25:returning?3.2:2.4,moved:false,burst:false,resolve,promise};
+    transit={target,returning,local,lift,distance,heading:Math.atan2(dx,dz),source:{...ship},time:0,progress:returning&&!reduce?-.8/2.4:0,duration:local?1+distance/14:reduce?.25:returning?3.2:2.4,moved:false,burst:false,resolve,promise};
     overview=false;onOverviewChange(false);clearLasers();ship.speed=0;boostGlow=0;current=null;trailLife.fill(0);onNearby(null);
-    updateCamera(0,true);render();return promise;
+    onStart(local?'flight':'warp');
+    updateCamera(0,!local);render();return promise;
   }
   renderer.toneMappingExposure=1.1;renderer.shadowMap.needsUpdate=true;
   const api = {
@@ -761,8 +784,8 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     },
     zoomBy,
     beginFire, endFire, cancelFire,
-    reset(){return startTransit({...spawn},true);},
-    travel(station){return startTransit({x:station.stop.x,z:station.stop.z,heading:Math.PI,speed:0});},
+    reset(onStart){return startTransit({...spawn},true,onStart);},
+    travel(station,onStart){return startTransit({x:station.stop.x,z:station.stop.z,heading:Math.PI,speed:0},false,onStart);},
     setOverview,
     setActive(value){if(active===value)return;active=value;cancelAnimationFrame(frame);lastTime=0;if(!active){touches.clear();pinchDistance=0;clearLasers();}if(active&&!contextLost){resize();frame=requestAnimationFrame(tick);}},
     setReducedMotion(value){reduce=value;},

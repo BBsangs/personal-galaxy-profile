@@ -132,7 +132,7 @@ function renderGuide() {
   const tips = [
     ['试着驾驶飞船', touch ? '拖动右下摇杆飞行，横向拖动可原地转向。' : '<kbd>W / S</kbd> 前进、后退 · <kbd>A / D</kbd> 原地转向<br><kbd>Shift</kbd> 加速 · <kbd>空格</kbd> 刹车'],
     ['来一发蓄力激光', (touch ? '按住左下开火键' : '按住<kbd>鼠标左键 / J</kbd>') + '蓄力，5 秒满功率；继续按住会变红，8 秒过热告警，10 秒自动发射。随时松手可发射，冷却 3 秒。'],
-    ['去下一座岛屿看看', '靠近岛屿会自动展开履历，也可用「快速到达」直接跃迁。'],
+    ['去下一座岛屿看看', '靠近岛屿会自动展开履历。点击站点或使用「快速到达」，近处自动飞行，远处跃迁。'],
   ];
   if (guideIndex < 0) return;
   $('#guide-title').textContent = tips[guideIndex][0];
@@ -268,6 +268,7 @@ async function travel(id) {
   const station = stations.find(s => s.id === id);
   if ((!station&&!returning) || inTransit || building) return;
   inTransit = true;
+  document.body.classList.add('is-navigating');
   try {
     if ($('#explore').hidden) location.hash = '#explore';
     clearInput();
@@ -276,18 +277,24 @@ async function travel(id) {
     $('.map-panel').classList.remove('expanded');
     $('#expand-map').setAttribute('aria-pressed','false');$('#expand-map').textContent='展开星图';
     if (matchMedia('(max-width: 767px)').matches) $('.map-panel').open = false;
-    $('#warp-destination').textContent=returning?'返回起点':station.title;
-    document.body.style.setProperty('--warp-duration',returning?'3.2s':'2.4s');
-    document.body.classList.toggle('is-returning',returning);
-    document.body.classList.add('is-warping');
+    const onStart = mode => {
+      $('#flight-mode').textContent = mode === 'flight' ? '自动靠近' : '正在跃迁';
+      $('#location-status').textContent = returning ? '正在归航' : `正在${mode === 'flight' ? '飞往' : '跃迁至'}${station.title}`;
+      if (mode !== 'warp') return;
+      $('#warp-destination').textContent=returning?'返回起点':station.title;
+      document.body.style.setProperty('--warp-duration',returning?'3.2s':'2.4s');
+      document.body.classList.toggle('is-returning',returning);
+      document.body.classList.add('is-warping');
+    };
     if (worldApi && !world.classList.contains('error')) {
-      if(returning)await worldApi.reset();
-      else await worldApi.travel(station);
+      if(returning)await worldApi.reset(onStart);
+      else await worldApi.travel(station,onStart);
     } else setNearby(returning?null:station);
     world.focus({ preventScroll: true });
     if(returning)showToast('已返回出发地');
   } finally {
-    document.body.classList.remove('is-warping','is-returning');
+    document.body.classList.remove('is-warping','is-returning','is-navigating');
+    syncOverview(false);
     $('#destination').value = '';
     inTransit = false;
     clearInput();

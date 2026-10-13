@@ -29,11 +29,12 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
   });
   const win = Object.assign(node(), {innerWidth:1280,scrollTo(){}});
   let finishReveal, input, contextLost, pilotStatus, active=false, travels=0, heldFire=null, shots=0;
+  let navigationMode='warp',finishTravel;
   const views=[];
   const fakeWorld = {
     async createWorld(container, controls, onNearby, onLost, travel, onBuild, onOverview, onFlight) {
       input=controls;contextLost=onLost;pilotStatus=onFlight;onBuild(90,'首帧已生成');
-      return {reveal:()=>new Promise(resolve=>{finishReveal=()=>{onBuild(100,'星域就绪');resolve();};}),setActive:value=>{active=value;},setOverview:value=>{views.push(value);onOverview(value);},travel:async()=>{travels++;},
+      return {reveal:()=>new Promise(resolve=>{finishReveal=()=>{onBuild(100,'星域就绪');resolve();};}),setActive:value=>{active=value;},setOverview:value=>{views.push(value);onOverview(value);},travel:(station,onStart)=>{travels++;onStart(navigationMode);return new Promise(resolve=>{finishTravel=resolve;});},
         beginFire(source){if(heldFire)return false;heldFire=source;return true;},
         endFire(source,cancel=false){if(source!==heldFire)return;heldFire=null;if(!cancel)shots++;},
         cancelFire(){heldFire=null;},dispose(){}};
@@ -140,7 +141,20 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     const click={target:{closest:()=>toggle}};
     doc.fire('click',click);assert.equal(value.textContent,profile.phone);assert.equal(toggle.getAttribute('aria-pressed'),'true');
     doc.fire('click',click);assert.equal(value.textContent,'150****3205');assert.equal(toggle.getAttribute('aria-label'),'显示电话');
-    await select('#destination').fire('change',{target:{value:'project-1'}});assert.equal(travels,1);
+    for(const mode of ['flight','warp']){
+      navigationMode=mode;
+      const trip=select('#destination').fire('change',{target:{value:'project-1'}});
+      await new Promise(setImmediate);
+      assert.equal(doc.body.classList.contains('is-warping'),mode==='warp','nearby flight never plays the full-screen warp overlay');
+      assert.ok(doc.body.classList.contains('is-navigating'));
+      assert.equal(select('#flight-mode').textContent,mode==='flight'?'自动靠近':'正在跃迁');
+      assert.ok(select('#flight-guide').hidden);
+      win.fire('keydown',key('KeyW'));assert.equal(input.up,false,'manual controls do not fight the approach');
+      finishTravel();await trip;
+      assert.ok(!doc.body.classList.contains('is-warping') && !doc.body.classList.contains('is-navigating'));
+      assert.equal(select('#flight-mode').textContent,'飞行控制');
+    }
+    assert.equal(travels,2);
     contextLost();assert.ok(select('#world').classList.contains('error') && !select('.build-fallback').hidden);
     now+=40000;reportIdle();assert.ok(select('#flight-guide').hidden,'WebGL fallback never shows game hints');
     stick.fire('pointerdown',pointer(5,62,0));assert.equal(input.up,false,'failed WebGL cannot accept joystick input');
