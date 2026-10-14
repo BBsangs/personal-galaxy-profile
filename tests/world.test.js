@@ -220,15 +220,34 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     api.zoomBy(1e-6);frames(120);assert.ok(Math.abs(visibleHeight()-36)<.01);
     api.zoomBy(NaN);frames(1);assert.ok(Number.isFinite(visibleHeight()));
     api.zoomBy(1/.45);frames(120);
-    const touch=(pointerId,clientX)=>({pointerId,clientX,clientY:100,pointerType:'touch'});
+    const touch=(pointerId,clientX)=>({pointerId,clientX,clientY:100,pointerType:'touch',preventDefault(){}});
+    canvas.listeners.get('pointerdown')(touch(10,100));
+    assert.ok(flightStatus.charging,'single-finger canvas press starts charging');
+    canvas.listeners.get('pointerup')(touch(10,100));
+    assert.equal(lasers.children.filter(o=>o.visible).length,4,'a screen tap fires the ordinary bolts');frames(40);
+    canvas.listeners.get('pointerdown')(touch(10,100));frames(1,5001);
+    assert.equal(flightStatus.charge,1,'holding the screen uses the same five-second charge');
+    canvas.listeners.get('pointerup')(touch(10,100));assert.ok(beam.visible);frames(190);
+    for(const event of ['pointercancel','lostpointercapture']){
+      canvas.listeners.get('pointerdown')(touch(10,100));frames(30);
+      canvas.listeners.get(event)(touch(10,100));canvas.listeners.get('pointerup')(touch(10,100));
+      assert.ok(!beam.visible && !flightStatus.charging && flightStatus.cooldown===0,'canceled touch never fires');
+    }
+    canvas.listeners.get('pointerdown')(touch(10,100));frames(30);
+    canvas.listeners.get('pointermove')(touch(10,125));canvas.listeners.get('pointerup')(touch(10,125));
+    assert.ok(!beam.visible && flightStatus.cooldown===0,'a screen drag cancels the pending shot');
+    canvas.listeners.get('pointerdown')(touch(10,100));
+    canvas.listeners.get('pointerup')(touch(10,125));assert.equal(flightStatus.cooldown,0,'release displacement is checked even without a move event');
     canvas.listeners.get('pointerdown')(touch(1,100));
     canvas.listeners.get('pointerdown')(touch(2,200));
+    assert.ok(!flightStatus.charging,'a second canvas finger cancels shooting before pinch zoom');
     canvas.listeners.get('pointermove')(touch(2,300));frames(120);
     assert.ok(Math.abs(visibleHeight()-40)<.01,'spreading fingers zooms in');
     canvas.listeners.get('pointercancel')(touch(2,300));
     canvas.listeners.get('pointermove')(touch(1,60));frames(30);
     assert.ok(Math.abs(visibleHeight()-40)<.01,'one remaining touch cannot zoom');
     canvas.listeners.get('pointerup')(touch(1,60));
+    assert.ok(!beam.visible && lasers.children.every(o=>!o.visible),'finishing a pinch never fires');
     api.zoomBy(2);frames(120);
     const background=scene.children.find(o=>o.material?.isRawShaderMaterial);
     assert.ok(background && background.frustumCulled===false && background.material.depthWrite===false);
@@ -251,6 +270,12 @@ test('scene initializes, traverses portals, finishes warp, resets and disposes',
     const galaxy=galaxies[2],hit=new THREE.Vector3(galaxy.x,0,galaxy.z).project(camera);
     canvas.listeners.get('pointerdown')({button:0,pointerType:'mouse',clientX:(hit.x*.5+.5)*1280,clientY:(-hit.y*.5+.5)*800});
     assert.equal(gates.at(-1),galaxy.destination,'clicking a galaxy region also selects its destination');
+    const tapGalaxy={...touch(30,(hit.x*.5+.5)*1280),clientY:(-hit.y*.5+.5)*800};
+    const beforeTouchNavigation=gates.length;
+    canvas.listeners.get('pointerdown')(tapGalaxy);canvas.listeners.get('pointerup')(tapGalaxy);
+    assert.equal(gates.length,beforeTouchNavigation+1,'tapping a galaxy in overview navigates instead of firing');
+    canvas.listeners.get('pointerdown')(tapGalaxy);canvas.listeners.get('pointermove')({...tapGalaxy,clientX:tapGalaxy.clientX+20});canvas.listeners.get('pointerup')(tapGalaxy);
+    assert.equal(gates.length,beforeTouchNavigation+1,'dragging in overview does not accidentally navigate');
     assert.ok(lasers.children.every(o=>!o.visible),'overview selects navigation instead of firing');
     api.zoomBy(.8);assert.equal(views.at(-1),false);
     const startReturn=visibleHeight();frames(15);assert.ok(visibleHeight()<startReturn && visibleHeight()>80,'zoom-in glides toward the ship');

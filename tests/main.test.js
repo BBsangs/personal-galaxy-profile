@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { profile } from '../src/content.js';
+import { profile, stations } from '../src/content.js';
 
 test('loading, navigation, privacy toggles and joystick release follow the real event wiring', async () => {
   const nodes = new Map();
@@ -20,7 +20,7 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     };
   }
   const select = selector => { if(!nodes.has(selector))nodes.set(selector,node());return nodes.get(selector); };
-  const controlSelector = '.station-labels,.map-panel,.flight-toolbar,.touch-controls,.weapon-control';
+  const controlSelector = '.station-labels,.map-panel,.flight-menu,.touch-controls,.weapon-control';
   const controls = controlSelector.split(',').map(select);
   const phases = [12,42,82,100].map(phase=>Object.assign(node(), {dataset:{phase}}));
   const doc = Object.assign(node(), {
@@ -28,12 +28,12 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     querySelectorAll: selector => selector==='[data-phase]' ? phases : selector===controlSelector ? controls : [],
   });
   const win = Object.assign(node(), {innerWidth:1280,scrollTo(){}});
-  let finishReveal, input, contextLost, pilotStatus, active=false, travels=0, heldFire=null, shots=0;
+  let finishReveal, input, contextLost, pilotStatus, arrive, active=false, travels=0, heldFire=null, shots=0;
   let navigationMode='warp',finishTravel;
   const views=[];
   const fakeWorld = {
     async createWorld(container, controls, onNearby, onLost, travel, onBuild, onOverview, onFlight) {
-      input=controls;contextLost=onLost;pilotStatus=onFlight;onBuild(90,'首帧已生成');
+      input=controls;contextLost=onLost;pilotStatus=onFlight;arrive=onNearby;onBuild(90,'首帧已生成');
       return {reveal:()=>new Promise(resolve=>{finishReveal=()=>{onBuild(100,'星域就绪');resolve();};}),setActive:value=>{active=value;},setOverview:value=>{views.push(value);onOverview(value);},travel:(station,onStart)=>{travels++;onStart(navigationMode);return new Promise(resolve=>{finishTravel=resolve;});},
         beginFire(source){if(heldFire)return false;heldFire=source;return true;},
         endFire(source,cancel=false){if(source!==heldFire)return;heldFire=null;if(!cancel)shots++;},
@@ -41,9 +41,10 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     },
   };
   const compact = {matches:false,addEventListener(){}};
+  const compactMenu = Object.assign(node(),{matches:false});
   let now = 1000;
   const storage = new Map();
-  const values = {document:doc,window:win,location:{hash:''},performance:{now:()=>now},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},matchMedia:query=>query==='(max-width: 767px)' ? compact : ({matches:query.includes('coarse'),addEventListener(){}}),__mainTestWorld:fakeWorld};
+  const values = {document:doc,window:win,location:{hash:''},performance:{now:()=>now},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},matchMedia:query=>query==='(max-width: 767px)' ? compact : query==='(max-width: 767px), (max-height: 600px)' ? compactMenu : ({matches:query.includes('coarse'),addEventListener(){}}),__mainTestWorld:fakeWorld};
   const saved={};
   for(const [key,value] of Object.entries(values)){saved[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,configurable:true,writable:true});}
   try {
@@ -136,6 +137,32 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     pilotStatus({charge:0,cooldown:0,charging:false,idle:true});assert.equal(fire.getAttribute('aria-disabled'),'false');
     assert.equal(select('.weapon-control').style.getPropertyValue('--weapon-fill'),'0%');
     assert.equal(select('#weapon-hint').textContent,'长按 · 5秒满');
+    const menu=select('#flight-menu-toggle'),toolbar=select('.flight-toolbar');
+    assert.ok(menu.hidden && !toolbar.hidden,'desktop keeps the radial menu visible');
+    compactMenu.matches=true;compactMenu.fire('change');
+    assert.ok(!menu.hidden && toolbar.hidden,'compact layout starts with only the assistant visible');
+    menu.fire('click');assert.equal(menu.getAttribute('aria-expanded'),'true');assert.ok(!toolbar.hidden);
+    toolbar.fire('click',{target:{closest:()=>node()}});assert.ok(toolbar.hidden,'choosing an action collapses the assistant');
+    menu.fire('click');win.fire('pointerdown',{pointerType:'touch',target:node()});assert.ok(toolbar.hidden,'tapping outside closes the assistant');
+    menu.fire('click');arrive(stations[0]);
+    assert.ok(toolbar.hidden && !select('#billboard').hidden,'station information closes the helper menu');
+    select('#close-billboard').fire('click');
+    assert.ok(select('#billboard').hidden && !doc.body.classList.contains('at-station'));
+    arrive(stations[0]);assert.ok(select('#billboard').hidden,'a dismissed panel stays closed for this approach');
+    await select('#destination').fire('change',{target:{value:stations[0].id}});
+    assert.ok(!select('#billboard').hidden && travels===0,'explicitly selecting the current station reopens without navigation');
+    values.location.hash='#resume';win.fire('hashchange');
+    await select('#destination').fire('change',{target:{value:stations[0].id}});
+    assert.equal(values.location.hash,'#explore','selecting the current station from the resume returns to the scene');
+    win.fire('hashchange');
+    win.fire('keydown',key('Escape'));assert.ok(select('#billboard').hidden);
+    arrive(null);arrive(stations[0]);assert.ok(!select('#billboard').hidden,'leaving and returning starts a new visit');
+    select('#close-billboard').fire('click');arrive(null);
+    menu.fire('click');win.fire('keydown',key('Escape'));assert.ok(toolbar.hidden,'Escape also closes the assistant');
+    menu.fire('click');values.location.hash='#resume';win.fire('hashchange');
+    assert.ok(select('#explore').hidden && !select('#resume').hidden && toolbar.hidden);
+    values.location.hash='#explore';win.fire('hashchange');assert.ok(!select('#explore').hidden && select('#resume').hidden);
+    compactMenu.matches=false;compactMenu.fire('change');assert.ok(menu.hidden && !toolbar.hidden,'resizing back restores desktop controls');
     const field=node(),value=node(),toggle=node();
     field.dataset={privateField:'phone',privateLabel:'电话',privateMask:'150****3205'};field.querySelector=()=>value;toggle.closest=()=>field;
     const click={target:{closest:()=>toggle}};

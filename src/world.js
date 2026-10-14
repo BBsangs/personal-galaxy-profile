@@ -41,7 +41,7 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
   const movePointer = event => { const rect=container.getBoundingClientRect();pointer.set((event.clientX-rect.left)/width,1-(event.clientY-rect.top)/height); };
   container.addEventListener('pointermove',movePointer,{passive:true});
   const projected = new THREE.Vector3();
-  const billboard = container.querySelector('#billboard');
+  const billboard = document.querySelector('#billboard');
   const labelNodes = stations.map(s => container.querySelector(`[data-station="${s.id}"]`));
   const exhibitLabels = [];
   const mapCar = document.querySelector('#map-car');
@@ -65,38 +65,55 @@ export async function createWorld(container, input, onNearby, onContextLost, onP
     const [a, b] = [...touches.values()];
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   };
+  const selectGalaxy = event => {
+    if (!overview || !active || assembly || transit || contextLost) return;
+    const rect = container.getBoundingClientRect();
+    overviewRay.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / width * 2 - 1, 1 - (event.clientY - rect.top) / height * 2), camera);
+    if (overviewRay.ray.intersectPlane(navigationPlane, navigationPoint)) {
+      const galaxy = galaxies.find(g => Math.hypot(navigationPoint.x - g.x, navigationPoint.z - g.z) < g.radius);
+      if (galaxy) onPortal(galaxy.destination);
+    }
+  };
   const startPinch = event => {
     if (event.pointerType !== 'touch') {
-      if (event.button === 0 && overview && active && !assembly && !contextLost) {
-        const rect = container.getBoundingClientRect();
-        overviewRay.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / width * 2 - 1, 1 - (event.clientY - rect.top) / height * 2), camera);
-        if (overviewRay.ray.intersectPlane(navigationPlane, navigationPoint)) {
-          const galaxy = galaxies.find(g => Math.hypot(navigationPoint.x - g.x, navigationPoint.z - g.z) < g.radius);
-          if (galaxy) onPortal(galaxy.destination);
-        }
-      } else if (event.button === 0 && beginFire('mouse')) {
+      if (event.button === 0 && overview) selectGalaxy(event);
+      else if (event.button === 0 && beginFire('mouse')) {
         weaponPointer = event.pointerId;
         renderer.domElement.setPointerCapture(event.pointerId);
       }
       return;
     }
-    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.preventDefault();
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, tap: true });
     renderer.domElement.setPointerCapture(event.pointerId);
+    if (touches.size === 1 && beginFire('touch')) weaponPointer = event.pointerId;
+    if (touches.size > 1) {
+      touches.forEach(touch => { touch.tap = false; });
+      if (fireSource === 'touch') cancelFire();
+    }
     pinchDistance = touchDistance();
   };
   const movePinch = event => {
-    if (!touches.has(event.pointerId)) return;
-    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const touch = touches.get(event.pointerId);
+    if (!touch) return;
+    touch.x = event.clientX; touch.y = event.clientY;
+    if (Math.hypot(touch.x - touch.startX, touch.y - touch.startY) > 12) {
+      touch.tap = false;
+      if (event.pointerId === weaponPointer) cancelFire();
+    }
     const distance = touchDistance();
     if (pinchDistance > 0 && distance > 0) zoomBy(pinchDistance / distance);
     pinchDistance = distance;
   };
   const endPinch = (event, cancel = false) => {
+    const touch = touches.get(event.pointerId);
+    const moved = touch && Math.hypot(event.clientX - touch.startX, event.clientY - touch.startY) > 12;
     touches.delete(event.pointerId); pinchDistance = touchDistance();
-    if (event.pointerId === weaponPointer) { weaponPointer = null; endFire('mouse', cancel); }
+    if (event.pointerId === weaponPointer) { weaponPointer = null; endFire(touch ? 'touch' : 'mouse', cancel || moved); }
+    if (!cancel && touch?.tap && !moved && overview) selectGalaxy(event);
   };
   // Only the scene canvas captures zoom; resume panels retain their own scrolling.
-  const zoomEvents = { wheel: zoomWheel, pointerdown: startPinch, pointermove: movePinch, pointerup: endPinch, pointercancel: e => endPinch(e, true), lostpointercapture: e => endPinch(e, true) };
+  const zoomEvents = { wheel: zoomWheel, pointerdown: startPinch, pointermove: movePinch, pointerup: endPinch, pointercancel: e => endPinch(e, true), lostpointercapture: e => endPinch(e, true), contextmenu: e => e.preventDefault() };
   Object.entries(zoomEvents).forEach(([name, listener]) => renderer.domElement.addEventListener(name, listener, { passive: false }));
 
   const sun = new THREE.DirectionalLight(0xbfd4ff, 3.2);

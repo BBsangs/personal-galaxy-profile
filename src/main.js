@@ -10,6 +10,19 @@ const joystick = $('#joystick');
 const fireButton = $('#fire-laser');
 const guide = $('#flight-guide');
 const compactScreen = matchMedia('(max-width: 767px)');
+const compactMenu = matchMedia('(max-width: 767px), (max-height: 600px)');
+const menuToggle = $('#flight-menu-toggle');
+function setMenuOpen(open = false) {
+  const expanded = compactMenu.matches && open;
+  menuToggle.hidden = !compactMenu.matches;
+  menuToggle.setAttribute('aria-expanded', String(expanded));
+  menuToggle.setAttribute('aria-label', expanded ? '收起飞行助手' : '展开飞行助手');
+  $('.flight-toolbar').hidden = compactMenu.matches && !expanded;
+}
+menuToggle.addEventListener('click', () => { noteControl(); setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true'); });
+$('.flight-toolbar').addEventListener('click', e => { if (e.target.closest('button')) setMenuOpen(); });
+compactMenu.addEventListener('change', () => setMenuOpen());
+setMenuOpen();
 const pressedKeys = new Set();
 const stickAxes = { up: 0, down: 0, left: 0, right: 0 };
 let joystickPointer = null;
@@ -44,7 +57,7 @@ function setBuilding(value) {
   building = value;
   document.body.classList.toggle('is-building', value);
   $('#destination').disabled = value;
-  document.querySelectorAll('.station-labels,.map-panel,.flight-toolbar,.touch-controls,.weapon-control').forEach(node => { node.inert = value; });
+  document.querySelectorAll('.station-labels,.map-panel,.flight-menu,.touch-controls,.weapon-control').forEach(node => { node.inert = value; });
   if (value) clearInput();
   syncGuide();
 }
@@ -131,7 +144,7 @@ function renderGuide() {
   const touch = controlMode === 'touch';
   const tips = [
     ['试着驾驶飞船', touch ? '拖动右下摇杆飞行，横向拖动可原地转向。' : '<kbd>W / S</kbd> 前进、后退 · <kbd>A / D</kbd> 原地转向<br><kbd>Shift</kbd> 加速 · <kbd>空格</kbd> 刹车'],
-    ['来一发蓄力激光', (touch ? '按住左下开火键' : '按住<kbd>鼠标左键 / J</kbd>') + '蓄力，5 秒满功率；继续按住会变红，8 秒过热告警，10 秒自动发射。随时松手可发射，冷却 3 秒。'],
+    ['来一发蓄力激光', (touch ? '轻点场景开火，按住场景或左下开火键' : '按住<kbd>鼠标左键 / J</kbd>') + '蓄力，5 秒满功率；继续按住会变红，8 秒过热告警，10 秒自动发射。随时松手可发射，冷却 3 秒。'],
     ['去下一座岛屿看看', '靠近岛屿会自动展开履历。点击站点或使用「快速到达」，近处自动飞行，远处跃迁。'],
   ];
   if (guideIndex < 0) return;
@@ -203,8 +216,8 @@ function syncActivity() {
   if (!active) clearInput();
   syncGuide();
 }
-function setNearby(station) {
-  if (nearby?.id === station?.id) return;
+function setNearby(station, reopen = false) {
+  if (!reopen && nearby?.id === station?.id) return;
   nearby = station;
   syncGuide();
   billboard.hidden = !station;
@@ -212,6 +225,7 @@ function setNearby(station) {
   document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('nearby', button.dataset.station === station?.id));
   $('#location-status').textContent = station ? `已抵达：${station.title}` : '';
   if (!station) return;
+  setMenuOpen();
   visited.add(station.id);
   drawMap();
   $('#visited-count').textContent = `${visited.size} / ${stations.length}`;
@@ -222,6 +236,12 @@ function setNearby(station) {
   billboard.dataset.station = station.id;
   document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('visited', visited.has(button.dataset.station)));
 }
+function dismissBillboard() {
+  billboard.hidden = true;
+  document.body.classList.remove('at-station');
+  world.focus({ preventScroll: true });
+}
+$('#close-billboard').addEventListener('click', dismissBillboard);
 function sceneError() {
   clearInput();
   setBuilding(false);
@@ -254,6 +274,7 @@ async function loadWorld() {
   return worldPromise;
 }
 function route() {
+  setMenuOpen();
   const hash = location.hash;
   const resume = hash.startsWith('#resume');
   $('#explore').hidden = resume;
@@ -267,6 +288,14 @@ async function travel(id) {
   const returning=id==='home';
   const station = stations.find(s => s.id === id);
   if ((!station&&!returning) || inTransit || building) return;
+  if (station && nearby?.id === station.id) {
+    if ($('#explore').hidden) location.hash = '#explore';
+    setNearby(station, true);
+    $('#destination').value = '';
+    world.focus({ preventScroll: true });
+    return;
+  }
+  setMenuOpen();
   inTransit = true;
   document.body.classList.add('is-navigating');
   try {
@@ -337,6 +366,11 @@ document.querySelectorAll('[data-zoom]').forEach(button => button.addEventListen
 }));
 const keys = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', Space: 'brake', ShiftLeft: 'boost', ShiftRight: 'boost' };
 window.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && !$('#explore').hidden) {
+    if (!billboard.hidden) dismissBillboard();
+    else if (menuToggle.getAttribute('aria-expanded') === 'true') { setMenuOpen(); menuToggle.focus(); }
+    return;
+  }
   if (building || inTransit || e.metaKey || e.ctrlKey || e.altKey || $('#explore').hidden || world.classList.contains('error')) return;
   if (e.target !== joystick && e.target !== fireButton && e.target.closest('button,a,input,textarea,select,summary,.billboard-face,[contenteditable="true"]')) return;
   if (keys[e.code] || e.code === 'KeyJ' || e.code === 'KeyR' || e.code === 'KeyM') { setControlMode('keyboard'); noteControl(); }
@@ -400,6 +434,7 @@ fireButton.addEventListener('click', e => {
   if (e.detail === 0 && !building && !inTransit && !$('#explore').hidden && worldApi?.beginFire('assistive')) worldApi.endFire('assistive');
 });
 window.addEventListener('pointerdown', e => {
+  if (menuToggle.getAttribute('aria-expanded') === 'true' && !e.target.closest('.flight-menu')) setMenuOpen();
   if ($('#explore').hidden || e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
   if (e.pointerType === 'touch') setControlMode('touch');
   else if (e.pointerType === 'mouse' && e.target !== joystick && !joystick.contains(e.target)) setControlMode('keyboard');

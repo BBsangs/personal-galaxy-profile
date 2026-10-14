@@ -25,6 +25,8 @@
 
 
 .dial-ticks { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -1deg, var(--hud-stroke) 0deg 1deg, transparent 1deg 6deg); -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); pointer-events: none; }
+.flight-menu { display: contents; }
+#flight-menu-toggle { display: none; }
 .flight-toolbar { position: absolute; left: 32px; bottom: 38px; width: 216px; height: 216px; z-index: 2; pointer-events: none; }
 .flight-toolbar::before { content: ''; position: absolute; inset: 14px; border: 1px solid var(--hud-stroke); border-radius: 50%; background: radial-gradient(transparent 49%, #8be9dc20 50% 50.6%, transparent 51%); clip-path: polygon(0 0, 36% 0, 36% 17%, 64% 17%, 64% 0, 100% 0, 100% 100%, 0 100%); }
 .flight-toolbar::after { content: ''; position: absolute; inset: 25px; border-radius: 50%; border: 2px solid transparent; border-left-color: #8be9dc66; border-right-color: #8be9dc99; transform: rotate(-28deg); pointer-events: none; }
@@ -178,16 +180,6 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
   .pilot-keys { margin-top: 8px; font-size: 8px; gap: 2px 4px; }
   .pilot-keys kbd { font-size: 8px; }
   .overview-hint { font-size: 9px; margin-top: 8px; }
-  .flight-toolbar, body[data-controls="touch"] .flight-toolbar { top: 175px; left: 16px; bottom: auto; width: 146px; height: 146px; scale: none; }
-  .flight-toolbar::before { inset: 10px; }
-  .flight-toolbar::after { inset: 19px; border-width: 1px; }
-  .flight-toolbar button { width: 44px; height: 44px; font-size: 10px; gap: 0; }
-  .flight-toolbar #overview { top: 48px; left: 48px; width: 50px; height: 50px; font-size: 12px; }
-  .flight-toolbar #overview::before { inset: -5px; }
-  .flight-toolbar #reset-car { left: 51px; top: 0; }
-  .zoom-controls button:first-child, .zoom-controls button:last-child { bottom: 8px; }
-  .zoom-controls b { font-size: 18px; line-height: 18px; }
-  .zoom-controls span { font-size: 8px; }
   .weapon-control, body[data-controls="touch"] .weapon-control { left: max(18px, env(safe-area-inset-left)); bottom: max(48px, env(safe-area-inset-bottom)); width: 132px; height: 132px; }
   body[data-controls="touch"] .touch-controls { right: max(18px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom)); }
   .map-panel, body[data-controls="touch"] .map-panel { top: 162px; right: 16px; bottom: auto; width: 184px; }
@@ -209,7 +201,6 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
   .brand-name { font-size: 14px; }
   .header-actions { gap: 9px; }
   .destination select { width: 98px; }
-  .flight-toolbar, body[data-controls="touch"] .flight-toolbar { left: 10px; }
   .map-panel, body[data-controls="touch"] .map-panel { right: 10px; width: 160px; }
   .weapon-control, body[data-controls="touch"] .weapon-control { width: 120px; height: 120px; }
   #fire-laser { inset: 18px; }
@@ -220,11 +211,6 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
   .sector-hud { top: 84px; }
   .flight-readout { top: 78px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: auto; }
   .pilot-keys { display: none; }
-  .flight-toolbar, body[data-controls="touch"] .flight-toolbar { top: auto; bottom: 24px; left: 50%; width: 146px; height: 146px; scale: none; transform: translateX(-50%); }
-  .flight-toolbar #overview { width: 50px; height: 50px; left: 48px; top: 48px; font-size: 12px; }
-  .flight-toolbar #reset-car { left: 51px; top: 0; }
-  .flight-toolbar button { width: 44px; height: 44px; font-size: 10px; }
-  .zoom-controls button:first-child, .zoom-controls button:last-child { bottom: 8px; }
   .weapon-control, body[data-controls="touch"] .weapon-control { left: 24px; bottom: 24px; width: 118px; height: 118px; }
   #fire-laser { inset: 17px; }
   body[data-controls="touch"] .touch-controls { bottom: 16px; }
@@ -236,6 +222,23 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
   .map-panel.expanded .map-legend { display: none; }
   .flight-guide { top: 123px; width: 290px; padding: 12px 18px; }
   .flight-guide p { font-size: 11px; line-height: 1.7; }
+}
+@media (max-width: 767px), (max-height: 600px) {
+  .flight-menu { display: block; position: absolute; top: 162px; left: max(16px, env(safe-area-inset-left)); z-index: 4; width: 52px; }
+  #flight-menu-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 52px; height: 56px; padding: 5px; border: 1px solid var(--hud-stroke); border-radius: 18px; color: var(--hud-cyan); background: #061722e8; box-shadow: 0 5px 24px #02091240; }
+  #flight-menu-toggle svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+  #flight-menu-toggle span { font-size: 9px; }
+  #flight-menu-toggle[aria-expanded="true"] { border-color: var(--hud-cyan); background: #123443f5; }
+  .flight-menu .flight-toolbar, body[data-controls="touch"] .flight-menu .flight-toolbar { display: grid; grid-template-columns: 1fr 1fr; position: absolute; top: 64px; left: 0; bottom: auto; width: min(232px, calc(100vw - 32px)); height: auto; max-height: calc(100dvh - 244px); padding: 12px; gap: 8px; scale: none; transform: none; border: 1px solid var(--hud-stroke); border-radius: 16px; background: #06131df5; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
+  .flight-menu .flight-toolbar button, .flight-menu .flight-toolbar #overview, .flight-menu .flight-toolbar #reset-car { position: static; width: 100%; height: 56px; min-height: 56px; border-radius: 10px; font-size: 12px; }
+  .flight-menu .flight-toolbar::before, .flight-menu .flight-toolbar::after, .flight-menu .flight-toolbar > .dial-ticks, .flight-menu #overview::before { display: none; }
+  .flight-menu .flight-toolbar kbd { display: none; }
+  .flight-menu .zoom-controls b { font-size: 20px; line-height: 20px; }
+  .flight-menu .zoom-controls span { font-size: 10px; }
+}
+@media (max-height: 600px) {
+  .flight-menu { top: auto; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); }
+  .flight-menu .flight-toolbar, body[data-controls="touch"] .flight-menu .flight-toolbar { top: auto; bottom: 64px; left: 50%; transform: translateX(-50%); max-height: calc(100dvh - 154px); }
 }
 @media (prefers-reduced-transparency: reduce) {
   .flight-toolbar button, #fire-laser, .flight-guide { background: #06131d; }
