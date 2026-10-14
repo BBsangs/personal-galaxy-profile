@@ -216,12 +216,20 @@ function syncActivity() {
   if (!active) clearInput();
   syncGuide();
 }
+function setBillboardOpen(open) {
+  $('.billboard-header').hidden = !open;
+  $('.billboard-face').hidden = !open;
+  $('#reopen-billboard').hidden = open;
+  $('#reopen-billboard').setAttribute('aria-expanded', String(open));
+  billboard.classList.toggle('is-collapsed', !open);
+  document.body.classList.toggle('at-station', Boolean(nearby) && open);
+}
 function setNearby(station, reopen = false) {
   if (!reopen && nearby?.id === station?.id) return;
   nearby = station;
   syncGuide();
   billboard.hidden = !station;
-  document.body.classList.toggle('at-station', Boolean(station));
+  setBillboardOpen(Boolean(station));
   document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('nearby', button.dataset.station === station?.id));
   $('#location-status').textContent = station ? `已抵达：${station.title}` : '';
   if (!station) return;
@@ -231,17 +239,22 @@ function setNearby(station, reopen = false) {
   $('#visited-count').textContent = `${visited.size} / ${stations.length}`;
   $('#billboard-category').textContent = galaxies.find(g => g.id === station.galaxy).title;
   $('#billboard-title').textContent = station.title;
+  $('#reopen-billboard-title').textContent = station.title;
   $('#billboard-content').innerHTML = billboardMarkup(station);
   $('.billboard-face').scrollTop = 0;
   billboard.dataset.station = station.id;
   document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('visited', visited.has(button.dataset.station)));
 }
 function dismissBillboard() {
-  billboard.hidden = true;
-  document.body.classList.remove('at-station');
+  setBillboardOpen(false);
   world.focus({ preventScroll: true });
 }
 $('#close-billboard').addEventListener('click', dismissBillboard);
+$('#reopen-billboard').addEventListener('click', () => {
+  if (!nearby) return;
+  setBillboardOpen(true);
+  $('.billboard-face').focus({ preventScroll: true });
+});
 function sceneError() {
   clearInput();
   setBuilding(false);
@@ -367,7 +380,7 @@ document.querySelectorAll('[data-zoom]').forEach(button => button.addEventListen
 const keys = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', Space: 'brake', ShiftLeft: 'boost', ShiftRight: 'boost' };
 window.addEventListener('keydown', e => {
   if (e.code === 'Escape' && !$('#explore').hidden) {
-    if (!billboard.hidden) dismissBillboard();
+    if (!billboard.hidden && !$('.billboard-face').hidden) dismissBillboard();
     else if (menuToggle.getAttribute('aria-expanded') === 'true') { setMenuOpen(); menuToggle.focus(); }
     return;
   }

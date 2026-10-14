@@ -71,12 +71,27 @@ h1, h2, h3, p { margin-top: 0; }
 .station-labels button:hover::after, .station-labels button:focus-visible::after { transform: scaleX(1); opacity: 1; }
 .station-labels button:hover, .station-labels button:focus-visible { color: #fff; }
 .station-labels button.visited { color: #b5dcd0; }
-.billboard { position: absolute; top: 0; left: 0; width: min(430px, calc(100vw - 28px)); z-index: 6; }
-#close-billboard { position: absolute; top: 2px; right: 2px; z-index: 1; width: 44px; height: 44px; padding: 8px; color: var(--accent); background: #081521f2; border-radius: 50%; font-size: 25px; line-height: 1; }
-#close-billboard:hover { color: #fff; background: #18374a; }
+.billboard { position: absolute; top: 0; left: 0; width: min(430px, calc(100vw - 28px)); z-index: 6; background: linear-gradient(var(--accent) 0 0) left top / 42px 1px no-repeat, linear-gradient(var(--accent) 0 0) left top / 1px 28px no-repeat, linear-gradient(var(--accent) 0 0) right bottom / 42px 1px no-repeat, linear-gradient(var(--accent) 0 0) right bottom / 1px 28px no-repeat, #081521f2; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 18px 65px #020b1e29; }
+.billboard-header { display: flex; align-items: center; gap: 12px; padding: 6px 8px 0 25px; }
+#close-billboard { position: relative; flex-shrink: 0; width: 44px; height: 44px; padding: 0; color: var(--muted); background: none; }
+#close-billboard::before, #close-billboard::after { content: ''; position: absolute; left: 14px; top: 21px; width: 16px; height: 1px; background: currentColor; transform: rotate(45deg); pointer-events: none; }
+#close-billboard::after { transform: rotate(-45deg); }
+#close-billboard:hover, #close-billboard:focus-visible { color: var(--text); background: #aed9ed0a; }
 .billboard::after { content: ''; position: absolute; top: 100%; left: 28px; width: 1px; height: 30px; background: var(--accent); opacity: .45; pointer-events: none; }
-.billboard-face { padding: 22px 25px; border: 0; border-radius: 0; background: linear-gradient(var(--accent) 0 0) left top / 42px 1px no-repeat, linear-gradient(var(--accent) 0 0) left top / 1px 28px no-repeat, linear-gradient(var(--accent) 0 0) right bottom / 42px 1px no-repeat, linear-gradient(var(--accent) 0 0) right bottom / 1px 28px no-repeat, #081521f2; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 18px 65px #020b1e29; max-height: min(620px, calc(100dvh - 180px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.billboard-meta { padding-right: 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 8px; letter-spacing: 1px; margin-bottom: 16px; }
+.billboard-face { padding: 4px 25px 22px; max-height: min(570px, calc(100dvh - 230px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #aecdd15c transparent; }
+.billboard-face:hover, .billboard-face:focus-visible { scrollbar-color: #aecdd199 transparent; }
+.billboard-face::-webkit-scrollbar { width: 4px; }
+.billboard-face::-webkit-scrollbar-track { background: transparent; }
+.billboard-face::-webkit-scrollbar-thumb { min-height: 32px; border-radius: 4px; background: #aecdd15c; }
+.billboard-face::-webkit-scrollbar-thumb:hover { background: #aecdd199; }
+.billboard-face::-webkit-scrollbar-button { display: none; }
+.billboard-meta { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 8px; letter-spacing: 1px; }
+.billboard.is-collapsed { width: max-content; max-width: min(240px, calc(100vw - 28px)); background: #081521e8; box-shadow: 0 8px 28px #020b1e20; border-left: 1px solid var(--accent); }
+.billboard.is-collapsed::after { display: none; }
+#reopen-billboard { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: 100%; min-height: 48px; padding: 10px 16px; text-align: left; }
+#reopen-billboard > span { color: var(--accent); font-size: 10px; letter-spacing: 1px; }
+#reopen-billboard strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; }
+#reopen-billboard:hover { background: #aed9ed0a; }
 .billboard-status { white-space: nowrap; font-size: 9px; letter-spacing: 0; color: var(--accent); }
 .billboard h2 { font-size: 24px; font-weight: 550; line-height: 1.45; letter-spacing: -.5px; margin-bottom: 17px; overflow-wrap: anywhere; }
 #billboard-content > p { font-size: 12px; line-height: 1.95; color: var(--muted); margin-bottom: 20px; }
@@ -215,8 +230,9 @@ time { font-size: 10px; color: var(--muted); line-height: 2; font-variant-numeri
   .explore-view { min-height: min(540px, 100dvh); }
   .station-labels button { font-size: 11px; min-height: 40px; padding: 8px; max-width: 175px; }
   .billboard { width: min(330px, calc(100vw - 28px)); }
-  .billboard-face { padding: 17px 19px; max-height: min(390px, 46dvh); }
-  .billboard-meta { font-size: 7px; margin-bottom: 11px; }
+  .billboard-header { padding-left: 19px; }
+  .billboard-face { padding: 4px 19px 17px; max-height: min(340px, calc(46dvh - 50px)); }
+  .billboard-meta { font-size: 7px; }
   .billboard h2 { font-size: 21px; margin-bottom: 13px; }
   #billboard-content > p { font-size: 11px; line-height: 1.85; margin-bottom: 14px; }
   .billboard-profile img { width: 45px; height: 45px; }

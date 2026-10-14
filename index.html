@@ -35,8 +35,9 @@
           <div class="station-labels" aria-label="星域站点"></div>
         </div>
         <section id="billboard" class="billboard" aria-labelledby="billboard-title" hidden>
-          <button id="close-billboard" type="button" aria-label="关闭本次站点信息">×</button>
-          <div class="billboard-face" tabindex="0" aria-label="履历内容，可滚动"><div class="billboard-meta"><span id="billboard-category"></span><span class="billboard-status">已抵达</span></div><h2 id="billboard-title"></h2><div id="billboard-content"></div></div>
+          <div class="billboard-header"><div class="billboard-meta"><span id="billboard-category"></span><span class="billboard-status">已抵达</span></div><button id="close-billboard" type="button" aria-label="关闭本次站点信息" aria-controls="billboard-content"></button></div>
+          <div class="billboard-face" tabindex="0" aria-label="履历内容，可滚动"><h2 id="billboard-title"></h2><div id="billboard-content"></div></div>
+          <button id="reopen-billboard" type="button" aria-controls="billboard-content" aria-expanded="false" hidden><span>查看信息</span><strong id="reopen-billboard-title"></strong></button>
         </section>
         <p id="location-status" class="visually-hidden" role="status"></p>
         <details class="map-panel">
