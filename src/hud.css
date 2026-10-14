@@ -26,6 +26,7 @@
 
 .dial-ticks { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -1deg, var(--hud-stroke) 0deg 1deg, transparent 1deg 6deg); -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); pointer-events: none; }
 .flight-menu { display: contents; }
+#flight-menu-toggle { display: none; }
 .flight-toolbar { position: absolute; left: 32px; bottom: 38px; width: 216px; height: 216px; z-index: 2; pointer-events: none; }
 .flight-toolbar::before { content: ''; position: absolute; inset: 14px; border: 1px solid var(--hud-stroke); border-radius: 50%; background: radial-gradient(transparent 49%, #8be9dc20 50% 50.6%, transparent 51%); clip-path: polygon(0 0, 36% 0, 36% 17%, 64% 17%, 64% 0, 100% 0, 100% 100%, 0 100%); }
 .flight-toolbar::after { content: ''; position: absolute; inset: 25px; border-radius: 50%; border: 2px solid transparent; border-left-color: #8be9dc66; border-right-color: #8be9dc99; transform: rotate(-28deg); pointer-events: none; animation: navigation-orbit 20s linear infinite; }
@@ -224,16 +225,25 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
 }
 @media (max-width: 767px), (max-height: 600px) {
   .flight-menu { display: block; position: absolute; top: clamp(78px, calc(50dvh - 108px), 162px); left: max(16px, env(safe-area-inset-left)); z-index: 4; width: 216px; height: 216px; pointer-events: none; }
+  #flight-menu-toggle { display: block; position: absolute; top: 0; left: 0; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%; background: none; pointer-events: auto; }
+  #flight-menu-toggle::before { content: ''; position: absolute; inset: 2px; border: 1px solid #8be9dc24; border-left-color: #aef9ebcc; border-right-color: #aef9ebcc; border-radius: 50%; transform: rotate(-35deg); pointer-events: none; animation: navigation-orbit 20s linear infinite; }
+  .assistant-core { position: absolute; inset: 10px; border: 1px solid #8be9dc40; border-radius: 50%; background: radial-gradient(circle, #effffb 0 2px, #8be9dc 3px, #8be9dc30 7px, #06131db3 17px); box-shadow: 0 0 18px #8be9dc12, inset 0 0 10px #8be9dc16; pointer-events: none; }
+  #flight-menu-toggle:active { scale: .95; }
   .flight-menu .flight-toolbar, body[data-controls="touch"] .flight-menu .flight-toolbar { top: 0; left: 0; bottom: auto; scale: none; transform: none; }
+  .flight-menu .flight-toolbar button { --orbit-x: -80px; --orbit-y: -80px; animation: menu-spread .28s ease-out both; }
+  .flight-menu .flight-toolbar #reset-car { --orbit-y: 1px; }
+  .flight-menu .zoom-controls button:first-child { --orbit-x: 1px; --orbit-y: -135px; }
+  .flight-menu .zoom-controls button:last-child { --orbit-x: -161px; --orbit-y: -135px; }
 }
 @media (min-width: 600px) and (max-height: 600px) {
   .weapon-control, body[data-controls="touch"] .weapon-control { left: 254px; }
 }
+@keyframes menu-spread { from { opacity: 0; transform: translate(var(--orbit-x), var(--orbit-y)) scale(.35); } to { opacity: 1; transform: none; } }
 @keyframes navigation-orbit { to { rotate: 360deg; } }
 @media (prefers-reduced-transparency: reduce) {
   .flight-toolbar button, #fire-laser, .flight-guide { background: #06131d; }
   .radar-scope { background: #06131d; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .radar-sweep, .flight-guide, .flight-toolbar::after, .flight-toolbar #overview::before { animation: none; }
+  .radar-sweep, .flight-guide, .flight-toolbar::after, .flight-toolbar #overview::before, #flight-menu-toggle::before, .flight-menu .flight-toolbar button { animation: none; }
 }

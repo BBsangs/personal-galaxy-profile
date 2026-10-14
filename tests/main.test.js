@@ -41,9 +41,10 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     },
   };
   const compact = {matches:false,addEventListener(){}};
+  const compactMenu = Object.assign(node(),{matches:false});
   let now = 1000;
   const storage = new Map();
-  const values = {document:doc,window:win,location:{hash:''},performance:{now:()=>now},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},matchMedia:query=>query==='(max-width: 767px)' ? compact : ({matches:query.includes('coarse'),addEventListener(){}}),__mainTestWorld:fakeWorld};
+  const values = {document:doc,window:win,location:{hash:''},performance:{now:()=>now},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},matchMedia:query=>query==='(max-width: 767px)' ? compact : query==='(max-width: 767px), (max-height: 600px)' ? compactMenu : ({matches:query.includes('coarse'),addEventListener(){}}),__mainTestWorld:fakeWorld};
   const saved={};
   for(const [key,value] of Object.entries(values)){saved[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{value,configurable:true,writable:true});}
   try {
@@ -137,11 +138,20 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     assert.equal(select('.weapon-control').style.getPropertyValue('--weapon-fill'),'0%');
     assert.equal(select('#weapon-hint').textContent,'长按 · 5秒满');
     const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-    assert.doesNotMatch(html,/id="flight-menu-toggle"/,'all screen sizes use the same radial menu without an assistant');
-    assert.match(html,/<div id="flight-menu-actions" class="flight-toolbar"[^>]*>/);
-    assert.doesNotMatch(html.match(/<div id="flight-menu-actions"[^>]*>/)[0],/hidden/,'the radial menu is available immediately');
-    arrive(stations[0]);
-    assert.ok(!select('#billboard').hidden);
+    const orb=html.match(/<button id="flight-menu-toggle"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(orb,'small screens retain the expandable orb');
+    assert.equal(orb[1].replace(/<[^>]*>/g,'').trim(),'','the orb has no visible caption or close glyph');
+    assert.match(orb[0],/aria-label="展开飞行菜单"/,'the unlabeled orb still has an accessible name');
+    const menu=select('#flight-menu-toggle'),toolbar=select('.flight-toolbar');
+    assert.ok(menu.hidden && !toolbar.hidden,'desktop keeps the radial menu visible');
+    compactMenu.matches=true;compactMenu.fire('change');
+    assert.ok(!menu.hidden && toolbar.hidden,'compact layout starts with only the assistant visible');
+    menu.fire('click');assert.equal(menu.getAttribute('aria-expanded'),'true');assert.ok(menu.hidden && !toolbar.hidden,'opening replaces the orb with the original radial menu');
+    assert.ok(select('#overview').focused,'keyboard focus moves to the central overview control');
+    toolbar.fire('click',{target:{closest:()=>node()}});assert.ok(toolbar.hidden && !menu.hidden,'choosing an action restores the left orb');
+    menu.fire('click');win.fire('pointerdown',{pointerType:'touch',target:node()});assert.ok(toolbar.hidden && !menu.hidden,'tapping outside closes the assistant without an extra close button');
+    menu.fire('click');arrive(stations[0]);
+    assert.ok(toolbar.hidden && !select('#billboard').hidden,'station information closes the helper menu');
     const panel=select('#billboard'),face=select('.billboard-face'),reopen=select('#reopen-billboard');
     face.scrollTop=123;
     const displayedContent=select('#billboard-content').innerHTML;
@@ -168,9 +178,11 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     arrive(null);assert.ok(panel.hidden,'leaving also hides the reopen control');
     arrive(stations[0]);assert.ok(!panel.hidden && !face.hidden && reopen.hidden,'leaving and returning starts a new visit');
     select('#close-billboard').fire('click');arrive(null);
-    values.location.hash='#resume';win.fire('hashchange');
-    assert.ok(select('#explore').hidden && !select('#resume').hidden);
+    menu.fire('click');win.fire('keydown',key('Escape'));assert.ok(toolbar.hidden,'Escape also closes the assistant');
+    menu.fire('click');values.location.hash='#resume';win.fire('hashchange');
+    assert.ok(select('#explore').hidden && !select('#resume').hidden && toolbar.hidden);
     values.location.hash='#explore';win.fire('hashchange');assert.ok(!select('#explore').hidden && select('#resume').hidden);
+    compactMenu.matches=false;compactMenu.fire('change');assert.ok(menu.hidden && !toolbar.hidden,'resizing back restores desktop controls');
     const field=node(),value=node(),toggle=node();
     field.dataset={privateField:'phone',privateLabel:'电话',privateMask:'150****3205'};field.querySelector=()=>value;toggle.closest=()=>field;
     const click={target:{closest:()=>toggle}};
