@@ -13,7 +13,7 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
       classList: { add: (...names) => names.forEach(n=>classes.add(n)), remove: (...names) => names.forEach(n=>classes.delete(n)), contains: n=>classes.has(n), toggle(n,v=!classes.has(n)) { if(v)classes.add(n);else classes.delete(n);return v; } },
       addEventListener: (name,callback) => listeners.set(name,callback),
       fire: (name,event={}) => listeners.get(name)?.(event),
-      querySelector: () => node(), closest: () => null, contains() { return false; }, focus() {}, setPointerCapture() {},
+      querySelector: () => node(), closest: () => null, contains() { return false; }, focus() { this.focused=true; }, setPointerCapture() {},
       getBoundingClientRect: () => ({left:0,top:0,width:124,height:124}),
       setAttribute: (key,value) => attributes.set(key,value), getAttribute: key => attributes.get(key),
       getContext: () => new Proxy({}, {get: (_,key) => key==='createRadialGradient' ? () => ({addColorStop(){}}) : () => {}}),
@@ -141,9 +141,10 @@ test('loading, navigation, privacy toggles and joystick release follow the real 
     assert.ok(menu.hidden && !toolbar.hidden,'desktop keeps the radial menu visible');
     compactMenu.matches=true;compactMenu.fire('change');
     assert.ok(!menu.hidden && toolbar.hidden,'compact layout starts with only the assistant visible');
-    menu.fire('click');assert.equal(menu.getAttribute('aria-expanded'),'true');assert.ok(!toolbar.hidden);
-    toolbar.fire('click',{target:{closest:()=>node()}});assert.ok(toolbar.hidden,'choosing an action collapses the assistant');
-    menu.fire('click');win.fire('pointerdown',{pointerType:'touch',target:node()});assert.ok(toolbar.hidden,'tapping outside closes the assistant');
+    menu.fire('click');assert.equal(menu.getAttribute('aria-expanded'),'true');assert.ok(menu.hidden && !toolbar.hidden,'opening replaces the orb with the original radial menu');
+    assert.ok(select('#overview').focused,'keyboard focus moves to the central overview control');
+    toolbar.fire('click',{target:{closest:()=>node()}});assert.ok(toolbar.hidden && !menu.hidden,'choosing an action restores the left orb');
+    menu.fire('click');win.fire('pointerdown',{pointerType:'touch',target:node()});assert.ok(toolbar.hidden && !menu.hidden,'tapping outside closes the assistant without an extra close button');
     menu.fire('click');arrive(stations[0]);
     assert.ok(toolbar.hidden && !select('#billboard').hidden,'station information closes the helper menu');
     const panel=select('#billboard'),face=select('.billboard-face'),reopen=select('#reopen-billboard');

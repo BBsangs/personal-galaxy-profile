@@ -14,10 +14,11 @@ const compactMenu = matchMedia('(max-width: 767px), (max-height: 600px)');
 const menuToggle = $('#flight-menu-toggle');
 function setMenuOpen(open = false) {
   const expanded = compactMenu.matches && open;
-  menuToggle.hidden = !compactMenu.matches;
+  menuToggle.hidden = !compactMenu.matches || expanded;
   menuToggle.setAttribute('aria-expanded', String(expanded));
   menuToggle.setAttribute('aria-label', expanded ? '收起飞行助手' : '展开飞行助手');
   $('.flight-toolbar').hidden = compactMenu.matches && !expanded;
+  if (expanded) $('#overview').focus({ preventScroll: true });
 }
 menuToggle.addEventListener('click', () => { noteControl(); setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true'); });
 $('.flight-toolbar').addEventListener('click', e => { if (e.target.closest('button')) setMenuOpen(); });
