@@ -26,15 +26,14 @@
 
 .dial-ticks { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -1deg, var(--hud-stroke) 0deg 1deg, transparent 1deg 6deg); -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask-image: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); pointer-events: none; }
 .flight-menu { display: contents; }
-#flight-menu-toggle { display: none; }
 .flight-toolbar { position: absolute; left: 32px; bottom: 38px; width: 216px; height: 216px; z-index: 2; pointer-events: none; }
 .flight-toolbar::before { content: ''; position: absolute; inset: 14px; border: 1px solid var(--hud-stroke); border-radius: 50%; background: radial-gradient(transparent 49%, #8be9dc20 50% 50.6%, transparent 51%); clip-path: polygon(0 0, 36% 0, 36% 17%, 64% 17%, 64% 0, 100% 0, 100% 100%, 0 100%); }
-.flight-toolbar::after { content: ''; position: absolute; inset: 25px; border-radius: 50%; border: 2px solid transparent; border-left-color: #8be9dc66; border-right-color: #8be9dc99; transform: rotate(-28deg); pointer-events: none; }
+.flight-toolbar::after { content: ''; position: absolute; inset: 25px; border-radius: 50%; border: 2px solid transparent; border-left-color: #8be9dc66; border-right-color: #8be9dc99; transform: rotate(-28deg); pointer-events: none; animation: navigation-orbit 20s linear infinite; }
 .flight-toolbar button { position: absolute; z-index: 1; width: 54px; height: 54px; padding: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #8be9dc6b; border-radius: 50%; color: var(--hud-ink); font-size: 11px; white-space: nowrap; background: radial-gradient(circle, #0a2333f2, var(--hud-shade) 70%); pointer-events: auto; transition: border-color .2s, box-shadow .2s, color .2s; }
 .flight-toolbar button:hover, .flight-toolbar button[aria-pressed="true"] { color: #fff; border-color: var(--hud-cyan); box-shadow: 0 0 16px #8be9dc24, inset 0 0 14px #8be9dc12; }
 .flight-toolbar button:active { scale: .96; }
 .flight-toolbar #overview { width: 86px; height: 86px; left: 65px; top: 65px; font-size: 14px; border-color: #8be9dcaa; outline-offset: 7px; }
-.flight-toolbar #overview::before { content: ''; position: absolute; inset: -7px; border: 1px solid #8be9dc40; border-radius: 50%; border-top-color: transparent; border-bottom-color: transparent; transform: rotate(35deg); }
+.flight-toolbar #overview::before { content: ''; position: absolute; inset: -7px; border: 1px solid #8be9dc40; border-radius: 50%; border-top-color: transparent; border-bottom-color: transparent; transform: rotate(35deg); animation: navigation-orbit 14s linear infinite reverse; }
 .flight-toolbar #reset-car { left: 81px; top: 0; }
 .zoom-controls { display: contents; }
 .zoom-controls button:first-child { left: 0; bottom: 26px; }
@@ -225,25 +224,16 @@ body[data-controls="touch"] .map-panel { bottom: 240px; }
 }
 @media (max-width: 767px), (max-height: 600px) {
   .flight-menu { display: block; position: absolute; top: clamp(78px, calc(50dvh - 108px), 162px); left: max(16px, env(safe-area-inset-left)); z-index: 4; width: 216px; height: 216px; pointer-events: none; }
-  #flight-menu-toggle { display: flex; position: absolute; top: 0; left: 0; pointer-events: auto; align-items: flex-end; justify-content: center; width: 56px; height: 68px; padding: 0 0 2px; border: 0; border-radius: 50%; color: var(--hud-ink); background: none; touch-action: manipulation; }
-  #flight-menu-toggle::before { content: ''; position: absolute; top: 1px; left: 2px; width: 52px; height: 52px; border: 1px solid #8be9dc24; border-left-color: #aef9ebcc; border-right-color: #aef9ebcc; border-radius: 50%; transform: rotate(-35deg); pointer-events: none; }
-  #flight-menu-toggle > span:last-child { font-size: 10px; line-height: 14px; letter-spacing: 3px; padding-left: 3px; text-shadow: 0 1px 6px #020912; }
-  .assistant-core { position: absolute; top: 9px; left: 10px; width: 36px; height: 36px; border: 1px solid #8be9dc40; border-radius: 50%; background: radial-gradient(circle, #effffb 0 2px, #8be9dc 3px, #8be9dc30 7px, #06131db3 17px); box-shadow: 0 0 18px #8be9dc12, inset 0 0 10px #8be9dc16; pointer-events: none; }
-  #flight-menu-toggle:active { scale: .95; }
-  .flight-menu .flight-toolbar, body[data-controls="touch"] .flight-menu .flight-toolbar { display: block; top: 0; left: 0; bottom: auto; width: 216px; height: 216px; scale: none; transform: none; animation: assistant-reveal .22s ease-out; }
-  .flight-menu .flight-toolbar button { --orbit-x: -80px; --orbit-y: -81px; animation: assistant-spread .28s ease-out both; }
-  .flight-menu .flight-toolbar #reset-car { --orbit-y: 0px; }
-  .flight-menu .flight-toolbar kbd { display: none; }
-  .flight-menu .zoom-controls button { top: 81px; bottom: auto; }
-  .flight-menu .zoom-controls button:first-child { --orbit-x: 1px; }
-  .flight-menu .zoom-controls button:last-child { --orbit-x: -161px; }
+  .flight-menu .flight-toolbar, body[data-controls="touch"] .flight-menu .flight-toolbar { top: 0; left: 0; bottom: auto; scale: none; transform: none; }
 }
-@keyframes assistant-reveal { from { opacity: 0; } to { opacity: 1; } }
-@keyframes assistant-spread { from { opacity: 0; transform: translate(var(--orbit-x, 0px), var(--orbit-y, 0px)) scale(.35); } to { opacity: 1; transform: none; } }
+@media (min-width: 600px) and (max-height: 600px) {
+  .weapon-control, body[data-controls="touch"] .weapon-control { left: 254px; }
+}
+@keyframes navigation-orbit { to { rotate: 360deg; } }
 @media (prefers-reduced-transparency: reduce) {
   .flight-toolbar button, #fire-laser, .flight-guide { background: #06131d; }
   .radar-scope { background: #06131d; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .radar-sweep, .flight-guide, .flight-menu .flight-toolbar, .flight-menu .flight-toolbar button { animation: none; }
+  .radar-sweep, .flight-guide, .flight-toolbar::after, .flight-toolbar #overview::before { animation: none; }
 }

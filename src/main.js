@@ -10,20 +10,6 @@ const joystick = $('#joystick');
 const fireButton = $('#fire-laser');
 const guide = $('#flight-guide');
 const compactScreen = matchMedia('(max-width: 767px)');
-const compactMenu = matchMedia('(max-width: 767px), (max-height: 600px)');
-const menuToggle = $('#flight-menu-toggle');
-function setMenuOpen(open = false) {
-  const expanded = compactMenu.matches && open;
-  menuToggle.hidden = !compactMenu.matches || expanded;
-  menuToggle.setAttribute('aria-expanded', String(expanded));
-  menuToggle.setAttribute('aria-label', expanded ? '收起飞行助手' : '展开飞行助手');
-  $('.flight-toolbar').hidden = compactMenu.matches && !expanded;
-  if (expanded) $('#overview').focus({ preventScroll: true });
-}
-menuToggle.addEventListener('click', () => { noteControl(); setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true'); });
-$('.flight-toolbar').addEventListener('click', e => { if (e.target.closest('button')) setMenuOpen(); });
-compactMenu.addEventListener('change', () => setMenuOpen());
-setMenuOpen();
 const pressedKeys = new Set();
 const stickAxes = { up: 0, down: 0, left: 0, right: 0 };
 let joystickPointer = null;
@@ -234,7 +220,6 @@ function setNearby(station, reopen = false) {
   document.querySelectorAll('[data-station]').forEach(button => button.classList.toggle('nearby', button.dataset.station === station?.id));
   $('#location-status').textContent = station ? `已抵达：${station.title}` : '';
   if (!station) return;
-  setMenuOpen();
   visited.add(station.id);
   drawMap();
   $('#visited-count').textContent = `${visited.size} / ${stations.length}`;
@@ -288,7 +273,6 @@ async function loadWorld() {
   return worldPromise;
 }
 function route() {
-  setMenuOpen();
   const hash = location.hash;
   const resume = hash.startsWith('#resume');
   $('#explore').hidden = resume;
@@ -309,7 +293,6 @@ async function travel(id) {
     world.focus({ preventScroll: true });
     return;
   }
-  setMenuOpen();
   inTransit = true;
   document.body.classList.add('is-navigating');
   try {
@@ -382,7 +365,6 @@ const keys = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA:
 window.addEventListener('keydown', e => {
   if (e.code === 'Escape' && !$('#explore').hidden) {
     if (!billboard.hidden && !$('.billboard-face').hidden) dismissBillboard();
-    else if (menuToggle.getAttribute('aria-expanded') === 'true') { setMenuOpen(); menuToggle.focus(); }
     return;
   }
   if (building || inTransit || e.metaKey || e.ctrlKey || e.altKey || $('#explore').hidden || world.classList.contains('error')) return;
@@ -448,7 +430,6 @@ fireButton.addEventListener('click', e => {
   if (e.detail === 0 && !building && !inTransit && !$('#explore').hidden && worldApi?.beginFire('assistive')) worldApi.endFire('assistive');
 });
 window.addEventListener('pointerdown', e => {
-  if (menuToggle.getAttribute('aria-expanded') === 'true' && !e.target.closest('.flight-menu')) setMenuOpen();
   if ($('#explore').hidden || e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
   if (e.pointerType === 'touch') setControlMode('touch');
   else if (e.pointerType === 'mouse' && e.target !== joystick && !joystick.contains(e.target)) setControlMode('keyboard');
